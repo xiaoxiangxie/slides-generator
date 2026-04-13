@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dark Botanical Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@400;700;800&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0f0f0f;
+  font-family: 'IBM Plex Sans', sans-serif;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6%;
+  color: #e8e4df;
+  overflow: hidden;
+}
+
+.main { width:100%; height:100%; position:relative; display:flex; flex-direction:column; justify-content:center; padding:8%; }
+.shape1 { position:absolute; top:-30%; right:-10%; width:200px; height:200px; border-radius:50%; background:radial-gradient(ellipse, rgba(212,165,116,0.25) 0%, transparent 70%); filter:blur(25px); }
+.shape2 { position:absolute; bottom:-20%; left:-10%; width:160px; height:160px; border-radius:50%; background:radial-gradient(ellipse, rgba(232,180,184,0.2) 0%, transparent 70%); filter:blur(30px); }
+.vert { position:absolute; top:10%; bottom:10%; left:6%; width:1px; background:linear-gradient(to bottom, transparent, #d4a574, transparent); }
+.overline { font-size:clamp(0.35rem,0.85vw,0.55rem); color:#d4a574; text-transform:uppercase; letter-spacing:0.2em; margin-bottom:4%; opacity:0; animation:fadeIn 0.6s ease 0.2s forwards; }
+h1 { font-family:'Cormorant',serif; font-size:clamp(1.4rem,4.5vw,3rem); font-weight:400; line-height:1.1; margin-bottom:6%; opacity:0; animation:fadeUp 0.8s ease 0.3s forwards; }
+h1 em { font-style:italic; color:#e8b4b8; }
+.tagline { font-size:clamp(0.42rem,1.1vw,0.68rem); color:#9a9590; line-height:1.6; max-width:40ch; opacity:0; animation:fadeIn 0.6s ease 0.5s forwards; }
+@keyframes fadeUp { to { opacity:1; transform:translateY(0); } }
+@keyframes fadeIn { to { opacity:1; } }
+
+</style>
+</head>
+<body>
+<div class="main">
+  <div class="shape1"></div>
+  <div class="shape2"></div>
+  <div class="vert"></div>
+  <div class="overline">S01 · 核心闭环</div>
+  <h1>Agent <em>Loop</em></h1>
+  <p class="tagline">把"模型 + 工具"连接成一个能持续推进任务的主循环</p>
+</div>
+</body>
+</html>

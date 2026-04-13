@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Style 05: Notebook Tabs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* === MANDATORY VIEWPORT BASE === */
+html, body { height: 100%; overflow-x: hidden; }
+html { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+.slide {
+    width: 100vw; height: 100vh; height: 100dvh;
+    overflow: hidden; scroll-snap-align: start;
+    display: flex; flex-direction: column; position: relative;
+}
+:root {
+    --title-size: clamp(1.5rem, 5vw, 4rem);
+    --body-size: clamp(0.75rem, 1.5vw, 1.125rem);
+    --small-size: clamp(0.65rem, 1vw, 0.875rem);
+    --slide-padding: clamp(1rem, 4vw, 4rem);
+    --content-gap: clamp(0.5rem, 2vw, 2rem);
+    --element-gap: clamp(0.25rem, 1vw, 1rem);
+}
+@media (max-height: 700px) { :root { --slide-padding: clamp(0.75rem, 3vw, 2rem); --title-size: clamp(1.25rem, 4.5vw, 2.5rem); } }
+@media (max-height: 600px) { :root { --slide-padding: clamp(0.5rem, 2.5vw, 1.5rem); --title-size: clamp(1.1rem, 4vw, 2rem); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.2s !important; } }
+
+/* === NOTEBOOK TABS THEME === */
+:root {
+    --bg-outer: #2d2d2d;
+    --bg-page: #f8f6f1;
+    --text-primary: #1a1a1a;
+    --tab-1: #98d4bb;
+    --tab-2: #c7b8ea;
+    --tab-3: #f4b8c5;
+    --tab-4: #a8d8ea;
+    --tab-5: #ffe6a7;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg-outer); }
+
+/* Outer frame */
+.outer {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    padding: clamp(1.5rem, 4vw, 3rem);
+}
+
+/* Paper card */
+.paper {
+    position: relative;
+    width: min(90vw, 900px);
+    height: min(80vh, 700px);
+    background: var(--bg-page);
+    border-radius: 4px;
+    box-shadow:
+        0 2px 4px rgba(0,0,0,0.1),
+        0 8px 24px rgba(0,0,0,0.15),
+        0 24px 60px rgba(0,0,0,0.2);
+    padding: clamp(2rem, 5vw, 4rem);
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    transform: scale(0.95) translateY(20px);
+    animation: paperIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards;
+}
+@keyframes paperIn { to { opacity: 1; transform: scale(1) translateY(0); } }
+
+/* Binder holes */
+.paper::before {
+    content: '';
+    position: absolute;
+    left: clamp(1rem, 3vw, 2rem);
+    top: 50%;
+    transform: translateY(-50%);
+    width: 12px; height: 60px;
+    background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px, transparent 10px,
+        var(--bg-outer) 10px, var(--bg-outer) 14px,
+        transparent 14px, transparent 24px
+    );
+    border-radius: 2px;
+}
+
+/* Colored tabs on right edge */
+.tabs {
+    position: absolute;
+    right: clamp(-4px, -0.8vw, -8px);
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: clamp(3px, 0.6vh, 5px);
+}
+.tab {
+    width: clamp(6px, 1vw, 10px);
+    border-radius: 2px 0 0 2px;
+    opacity: 0;
+    animation: tabSlide 0.4s ease forwards;
+}
+.tab:nth-child(1) { height: clamp(20px, 4vh, 35px); background: var(--tab-1); animation-delay: 0.4s; }
+.tab:nth-child(2) { height: clamp(35px, 6vh, 55px); background: var(--tab-2); animation-delay: 0.5s; }
+.tab:nth-child(3) { height: clamp(15px, 3vh, 28px); background: var(--tab-3); animation-delay: 0.6s; }
+.tab:nth-child(4) { height: clamp(40px, 7vh, 65px); background: var(--tab-4); animation-delay: 0.7s; }
+.tab:nth-child(5) { height: clamp(25px, 5vh, 45px); background: var(--tab-5); animation-delay: 0.8s; }
+@keyframes tabSlide { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
+
+/* Content */
+.tab-label {
+    font-size: var(--small-size);
+    font-weight: 500;
+    color: var(--tab-2);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: var(--element-gap);
+    opacity: 0;
+    animation: fadeIn 0.6s ease 0.3s forwards;
+}
+h1 {
+    font-family: 'Bodoni Moda', serif;
+    font-size: var(--title-size);
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.1;
+    margin-bottom: var(--content-gap);
+    opacity: 0;
+    animation: fadeUp 0.7s ease 0.4s forwards;
+}
+h1 em { font-style: italic; color: var(--tab-3); }
+.desc {
+    font-size: var(--body-size);
+    color: #666;
+    line-height: 1.7;
+    max-width: 45ch;
+    opacity: 0;
+    animation: fadeUp 0.7s ease 0.5s forwards;
+}
+.meta-row {
+    margin-top: auto;
+    display: flex;
+    gap: clamp(1rem, 3vw, 2rem);
+    padding-top: var(--content-gap);
+    border-top: 1px solid rgba(0,0,0,0.08);
+    opacity: 0;
+    animation: fadeIn 0.6s ease 0.7s forwards;
+}
+.meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.meta-label {
+    font-size: clamp(0.55rem, 0.8vw, 0.7rem);
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+.meta-value {
+    font-size: var(--small-size);
+    font-weight: 500;
+    color: var(--text-primary);
+}
+@keyframes fadeIn { to { opacity: 1; } }
+@keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+
+<div class="slide">
+    <div class="outer">
+        <div class="paper">
+            <div class="tabs">
+                <div class="tab"></div>
+                <div class="tab"></div>
+                <div class="tab"></div>
+                <div class="tab"></div>
+                <div class="tab"></div>
+            </div>
+
+            <div class="tab-label">S01 · 核心闭环</div>
+            <h1>Agent <em>Loop</em></h1>
+            <p class="desc">把"模型 + 工具"连接成一个能持续推进任务的主循环。最小实现，仅需 130 行代码。</p>
+
+            <div class="meta-row">
+                <div class="meta-item">
+                    <span class="meta-label">代码量</span>
+                    <span class="meta-value">130 LOC</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">工具数</span>
+                    <span class="meta-value">1 个工具</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">核心</span>
+                    <span class="meta-value">消息循环</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

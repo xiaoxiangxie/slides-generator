@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Style 07: Split Pastel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+/* === MANDATORY VIEWPORT BASE === */
+html, body { height: 100%; overflow-x: hidden; }
+html { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+.slide {
+    width: 100vw; height: 100vh; height: 100dvh;
+    overflow: hidden; scroll-snap-align: start;
+    display: flex; flex-direction: column; position: relative;
+}
+:root {
+    --title-size: clamp(1.5rem, 5vw, 4rem);
+    --body-size: clamp(0.75rem, 1.5vw, 1.125rem);
+    --small-size: clamp(0.65rem, 1vw, 0.875rem);
+    --slide-padding: clamp(1rem, 4vw, 4rem);
+    --content-gap: clamp(0.5rem, 2vw, 2rem);
+    --element-gap: clamp(0.25rem, 1vw, 1rem);
+}
+@media (max-height: 700px) { :root { --slide-padding: clamp(0.75rem, 3vw, 2rem); --title-size: clamp(1.25rem, 4.5vw, 2.5rem); } }
+@media (max-height: 600px) { :root { --slide-padding: clamp(0.5rem, 2.5vw, 1.5rem); --title-size: clamp(1.1rem, 4vw, 2rem); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.2s !important; } }
+
+/* === SPLIT PASTEL THEME === */
+:root {
+    --bg-peach: #f5e6dc;
+    --bg-lavender: #e4dff0;
+    --text-dark: #1a1a1a;
+    --badge-mint: #c8f0d8;
+    --badge-yellow: #f0f0c8;
+    --badge-pink: #f0d4e0;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Outfit', sans-serif; }
+
+/* Split panels */
+.panel-peach {
+    position: absolute; top: 0; left: 0;
+    width: 50%; height: 100%;
+    background: var(--bg-peach);
+}
+.panel-lavender {
+    position: absolute; top: 0; right: 0;
+    width: 50%; height: 100%;
+    background: var(--bg-lavender);
+}
+
+/* Grid pattern on lavender side */
+.panel-lavender::after {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+        linear-gradient(rgba(100,80,150,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(100,80,150,0.06) 1px, transparent 1px);
+    background-size: 20px 20px;
+    pointer-events: none;
+}
+
+/* Left content */
+.left-content {
+    position: absolute;
+    top: 50%; left: 0;
+    transform: translateY(-50%);
+    padding: clamp(2rem, 5vw, 4rem);
+    opacity: 0;
+    animation: fadeIn 0.8s ease 0.3s forwards;
+}
+@keyframes fadeIn { to { opacity: 1; } }
+.section-label {
+    font-size: var(--small-size);
+    font-weight: 700;
+    color: #8a6a50;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: var(--content-gap);
+}
+h1 {
+    font-size: clamp(3rem, 8vw, 6rem);
+    font-weight: 800;
+    color: var(--text-dark);
+    line-height: 0.95;
+    margin-bottom: var(--content-gap);
+}
+h1 span {
+    color: #9b6ea0;
+    display: block;
+}
+
+/* Right content */
+.right-content {
+    position: absolute;
+    top: 50%; right: 0;
+    transform: translateY(-50%);
+    padding: clamp(2rem, 5vw, 4rem);
+    width: 50%;
+    opacity: 0;
+    animation: fadeIn 0.8s ease 0.5s forwards;
+}
+.badge-list {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(0.5rem, 1.5vh, 1rem);
+    margin-bottom: var(--content-gap);
+}
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+    font-size: var(--body-size);
+    font-weight: 500;
+    padding: 0.5em 1em;
+    border-radius: 30px;
+    width: fit-content;
+}
+.badge::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+.badge-mint { background: var(--badge-mint); color: #3a6a4a; }
+.badge-yellow { background: var(--badge-yellow); color: #6a6a3a; }
+.badge-pink { background: var(--badge-pink); color: #7a4a5a; }
+
+.desc {
+    font-size: var(--body-size);
+    color: #555;
+    line-height: 1.7;
+    max-width: 38ch;
+}
+</style>
+</head>
+<body>
+
+<div class="slide">
+    <div class="panel-peach"></div>
+    <div class="panel-lavender"></div>
+
+    <div class="left-content">
+        <div class="section-label">S01 · 核心闭环</div>
+        <h1>Agent<br><span>Loop</span></h1>
+    </div>
+
+    <div class="right-content">
+        <div class="badge-list">
+            <div class="badge badge-mint">130 LOC</div>
+            <div class="badge badge-yellow">最小闭环</div>
+            <div class="badge badge-pink">1 个工具</div>
+        </div>
+        <p class="desc">把"模型 + 工具"连接成一个能持续推进任务的主循环</p>
+    </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bold Signal Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black:wght@400;700;800&family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #1a1a1a 100%);
+  font-family: 'Space Grotesk', sans-serif;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6%;
+  color: #ffffff;
+  overflow: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+.card {
+  background: #FF5722;
+  padding: 8% 10%;
+  border-radius: 4px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+  width: 85%; max-width: 480px;
+  animation: cardIn 0.8s cubic-bezier(0.16,1,0.3,1) 0.3s both;
+}
+@keyframes cardIn { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:translateY(0); } }
+.num {
+  position: absolute; top: 6%; right: 8%;
+  font-family: 'Archivo Black', sans-serif;
+  font-size: 5rem; color: rgba(255,255,255,0.1);
+  line-height: 1;
+}
+h1 {
+  font-family: 'Archivo Black', sans-serif;
+  font-size: clamp(1.2rem, 4vw, 2.4rem);
+  color: #1a1a1a; line-height: 1.1;
+  margin-bottom: 6%;
+}
+p { font-size: clamp(0.45rem, 1.2vw, 0.72rem); color: rgba(26,26,26,0.7); line-height: 1.5; }
+.tag { display:inline-block; margin-top:8%; font-size:clamp(0.38rem,0.9vw,0.58rem); font-weight:500; color:rgba(26,26,26,0.6); text-transform:uppercase; letter-spacing:0.1em; }
+
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="num">01</div>
+  <h1>Agent Loop</h1>
+  <p>核心闭环 · 最小实现</p>
+  <span class="tag">Bold Signal</span>
+</div>
+
+</body>
+</html>

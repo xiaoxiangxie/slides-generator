@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Loop — 风格预览</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500&family=Manrope:wght@400;800&family=Syne:wght@700;800&family=Space+Mono:wght@400;700&family=Cormorant:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@300;400&family=Bodoni+Moda:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@400;500&family=Plus+Jakarta+Sans:wght@400;700;800&family=Outfit:wght@400;700;800&family=Fraunces:wght@700;900&family=Work+Sans:wght@400;500&family=JetBrains+Mono:wght@400;500;700&family=Nunito:wght@400;600&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Source+Serif+4:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    background: #0a0a0a;
+    color: #f0f0f0;
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100vh;
+    padding: clamp(2rem, 5vw, 4rem);
+}
+
+.header {
+    text-align: center;
+    margin-bottom: clamp(2rem, 5vw, 4rem);
+    padding-bottom: clamp(1.5rem, 4vw, 3rem);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.header-overline {
+    font-size: clamp(0.65rem, 1.2vw, 0.8rem);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    color: rgba(255,255,255,0.35);
+    margin-bottom: 0.75rem;
+}
+
+.header h1 {
+    font-family: 'Archivo Black', sans-serif;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    margin-bottom: 0.75rem;
+    background: linear-gradient(135deg, #fff 0%, #888 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.header-sub {
+    font-size: clamp(0.8rem, 1.5vw, 1rem);
+    color: rgba(255,255,255,0.4);
+    line-height: 1.6;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+    gap: clamp(1rem, 2.5vw, 1.5rem);
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.card {
+    display: block;
+    text-decoration: none;
+    border-radius: 8px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    transition: all 0.25s ease;
+    cursor: pointer;
+}
+
+.card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(255,255,255,0.15);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+}
+
+.card-preview {
+    height: clamp(120px, 20vw, 180px);
+    overflow: hidden;
+    position: relative;
+}
+
+.card-preview iframe,
+.card-preview .preview-content {
+    width: 100%;
+    height: 100%;
+    border: none;
+    transform-origin: top left;
+}
+
+.card-info {
+    padding: clamp(0.75rem, 1.5vw, 1rem);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.card-num {
+    font-size: clamp(0.6rem, 1vw, 0.75rem);
+    font-weight: 700;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 0.1em;
+}
+
+.card-name {
+    font-size: clamp(0.8rem, 1.4vw, 0.95rem);
+    font-weight: 500;
+    color: rgba(255,255,255,0.8);
+}
+
+.card-open {
+    font-size: clamp(0.6rem, 1vw, 0.7rem);
+    color: rgba(255,255,255,0.3);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.footer {
+    text-align: center;
+    margin-top: clamp(2rem, 5vw, 4rem);
+    padding-top: clamp(1.5rem, 4vw, 3rem);
+    border-top: 1px solid rgba(255,255,255,0.06);
+    font-size: clamp(0.7rem, 1.2vw, 0.85rem);
+    color: rgba(255,255,255,0.25);
+    line-height: 1.8;
+}
+
+/* ===========================================
+   EMBEDDED PREVIEW STYLES (same as originals)
+   =========================================== */
+
+/* 01 Bold Signal */
+.preview-01 { background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #1a1a1a 100%); }
+.preview-01::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 20px 20px;
+}
+.preview-01 .num { position:absolute;top:8px;left:10px; font-family:'Archivo Black',sans-serif; font-size:1.5rem; color:rgba(255,255,255,0.12); }
+.preview-01 .card-el { position:absolute; bottom:10px; left:10px; right:10px; background:#FF5722; padding:8px 10px; border-radius:2px; }
+.preview-01 .card-el h2 { font-family:'Archivo Black',sans-serif; font-size:0.8rem; color:#1a1a1a; line-height:1.1; }
+.preview-01 .card-el p { font-size:0.45rem; color:rgba(26,26,26,0.7); margin-top:2px; }
+
+/* 02 Electric Studio */
+.preview-02 { background:#0a0a0a; display:flex; flex-direction:column; }
+.preview-02 .top { height:45%; background:#0a0a0a; }
+.preview-02 .bot { height:55%; background:#ffffff; }
+.preview-02 .bar { position:absolute; top:0; left:0; width:3px; height:100%; background:#4361ee; }
+.preview-02 .top-txt { position:absolute; top:10px; left:12px; font-size:0.45rem; color:#4361ee; font-weight:800; letter-spacing:0.1em; }
+.preview-02 .big-t { position:absolute; top:25px; left:12px; font-family:'Manrope',sans-serif; font-size:1.4rem; font-weight:800; color:#fff; line-height:1; }
+.preview-02 .bot-t { position:absolute; bottom:10px; left:12px; right:12px; }
+.preview-02 .bot-t p { font-family:'Manrope',sans-serif; font-size:0.45rem; color:#0a0a0a; line-height:1.5; }
+.preview-02 .bot-t .meta { margin-top:4px; font-size:0.35rem; color:#888; }
+
+/* 03 Creative Voltage */
+.preview-03 { background:#1a1a2e; display:flex; }
+.preview-03 .left { width:45%; background:#0066ff; position:relative; }
+.preview-03 .left::after { content:''; position:absolute; inset:0; background-image:radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px); background-size:5px 5px; }
+.preview-03 .left .badge { position:absolute; top:8px; left:10px; font-family:'Space Mono',monospace; font-size:0.4rem; font-weight:700; background:#d4ff00; color:#1a1a2e; padding:2px 5px; }
+.preview-03 .left h2 { position:absolute; top:50%; left:0; transform:translateY(-50%); padding:0 8px; font-family:'Syne',sans-serif; font-size:1.2rem; font-weight:800; color:#fff; line-height:1; }
+.preview-03 .left h2 span { color:#d4ff00; }
+.preview-03 .right { width:55%; padding:10px; display:flex; flex-direction:column; justify-content:center; }
+.preview-03 .right .tag { font-family:'Space Mono',monospace; font-size:0.35rem; color:rgba(255,255,255,0.4); margin-bottom:4px; }
+.preview-03 .right p { font-size:0.4rem; color:rgba(255,255,255,0.7); line-height:1.5; }
+.preview-03 .right p strong { color:#d4ff00; }
+
+/* 04 Dark Botanical */
+.preview-04 { background:#0f0f0f; position:relative; }
+.preview-04 .shape1 { position:absolute; top:-40%; right:-20%; width:180px; height:180px; border-radius:50%; background:radial-gradient(ellipse, rgba(212,165,116,0.2) 0%, transparent 70%); filter:blur(20px); }
+.preview-04 .shape2 { position:absolute; bottom:-30%; left:-15%; width:150px; height:150px; border-radius:50%; background:radial-gradient(ellipse, rgba(232,180,184,0.15) 0%, transparent 70%); filter:blur(25px); }
+.preview-04 .vert { position:absolute; top:15%; bottom:15%; left:15px; width:1px; background:linear-gradient(to bottom, transparent, #d4a574, transparent); }
+.preview-04 .content { position:absolute; top:50%; left:25px; transform:translateY(-50%); }
+.preview-04 .overline { font-size:0.35rem; color:#d4a574; text-transform:uppercase; letter-spacing:0.2em; margin-bottom:4px; }
+.preview-04 h2 { font-family:'Cormorant',serif; font-size:1.3rem; font-weight:400; line-height:1.1; }
+.preview-04 h2 em { font-style:italic; color:#e8b4b8; }
+.preview-04 .tagline { font-size:0.4rem; color:#9a9590; margin-top:6px; line-height:1.5; }
+.preview-04 .quote { position:absolute; bottom:10px; right:12px; text-align:right; }
+.preview-04 .quote p { font-family:'Cormorant',serif; font-size:0.4rem; font-style:italic; color:#9a9590; }
+.preview-04 .quote .attr { font-size:0.3rem; color:#c9b896; }
+
+/* 05 Notebook Tabs */
+.preview-05 { background:#2d2d2d; display:flex; align-items:center; justify-content:center; }
+.preview-05 .paper { width:90%; height:85%; background:#f8f6f1; border-radius:3px; box-shadow:0 8px 24px rgba(0,0,0,0.3); padding:12px 12px 12px 28px; position:relative; }
+.preview-05 .holes { position:absolute; left:10px; top:50%; transform:translateY(-50%); width:8px; height:40px; background:repeating-linear-gradient(to bottom, transparent 0, transparent 6px, #2d2d2d 6px, #2d2d2d 9px, transparent 9px, transparent 15px); }
+.preview-05 .tabs { position:absolute; right:-3px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:3px; }
+.preview-05 .tab { width:6px; border-radius:2px 0 0 2px; }
+.preview-05 .tab:nth-child(1){height:18px;background:#98d4bb}
+.preview-05 .tab:nth-child(2){height:28px;background:#c7b8ea}
+.preview-05 .tab:nth-child(3){height:14px;background:#f4b8c5}
+.preview-05 .tab:nth-child(4){height:22px;background:#a8d8ea}
+.preview-05 .tab:nth-child(5){height:16px;background:#ffe6a7}
+.preview-05 .label { font-size:0.35rem; color:#c7b8ea; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:3px; }
+.preview-05 h2 { font-family:'Bodoni Moda',serif; font-size:1rem; font-weight:700; color:#1a1a1a; line-height:1.1; }
+.preview-05 h2 em { font-style:italic; color:#f4b8c5; }
+.preview-05 .desc { font-size:0.38rem; color:#888; margin-top:4px; line-height:1.5; }
+.preview-05 .meta { margin-top:auto; display:flex; gap:8px; padding-top:6px; border-top:1px solid rgba(0,0,0,0.08); }
+.preview-05 .meta-item { display:flex; flex-direction:column; gap:1px; }
+.preview-05 .meta-l { font-size:0.28rem; color:#bbb; text-transform:uppercase; }
+.preview-05 .meta-v { font-size:0.38rem; font-weight:500; color:#1a1a1a; }
+
+/* 06 Pastel Geometry */
+.preview-06 { background:#c8d9e6; display:flex; align-items:center; justify-content:center; }
+.preview-06 .card { width:90%; height:85%; background:#faf9f7; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,0.08); padding:12px; display:flex; gap:10px; align-items:center; }
+.preview-06 .left { flex:1; }
+.preview-06 .badges { display:flex; gap:3px; margin-bottom:4px; }
+.preview-06 .badge { font-size:0.32rem; font-weight:700; padding:2px 5px; border-radius:10px; }
+.preview-06 .badge-p { background:#f0b4d4; color:#7a3a5a; }
+.preview-06 .badge-m { background:#a8d4c4; color:#3a6a5a; }
+.preview-06 h2 { font-family:'Plus Jakarta Sans',sans-serif; font-size:1rem; font-weight:800; color:#1a1a1a; line-height:1.1; }
+.preview-06 .sub { font-size:0.38rem; color:#888; margin-top:3px; }
+.preview-06 .pills { display:flex; flex-direction:column; gap:3px; justify-content:center; height:100%; }
+.preview-06 .pill { width:18px; border-radius:3px; }
+.preview-06 .pill:nth-child(1){height:22px;background:#f0b4d4}
+.preview-06 .pill:nth-child(2){height:35px;background:#a8d4c4}
+.preview-06 .pill:nth-child(3){height:18px;background:#5a7c6a}
+.preview-06 .pill:nth-child(4){height:30px;background:#9b8dc4}
+.preview-06 .pill:nth-child(5){height:25px;background:#7c6aad}
+
+/* 07 Split Pastel */
+.preview-07 { display:flex; }
+.preview-07 .peach { width:50%; background:#f5e6dc; padding:12px; display:flex; flex-direction:column; justify-content:center; }
+.preview-07 .lav { width:50%; background:#e4dff0; position:relative; padding:12px; display:flex; flex-direction:column; justify-content:center; }
+.preview-07 .lav::after { content:''; position:absolute; inset:0; background-image:linear-gradient(rgba(100,80,150,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(100,80,150,0.06) 1px, transparent 1px); background-size:10px 10px; }
+.preview-07 .label { font-size:0.35rem; font-weight:700; color:#8a6a50; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:4px; }
+.preview-07 h2 { font-family:'Outfit',sans-serif; font-size:1.2rem; font-weight:800; color:#1a1a1a; line-height:0.95; }
+.preview-07 h2 span { color:#9b6ea0; display:block; }
+.preview-07 .badge { display:inline-flex; font-size:0.35rem; padding:3px 8px; border-radius:20px; margin-bottom:3px; }
+.preview-07 .badge-m { background:#c8f0d8; color:#3a6a4a; }
+.preview-07 .badge-y { background:#f0f0c8; color:#6a6a3a; }
+.preview-07 .badge-p { background:#f0d4e0; color:#7a4a5a; }
+.preview-07 .desc { font-size:0.38rem; color:#666; }
+
+/* 08 Vintage Editorial */
+.preview-08 { background:#f5f3ee; display:flex; align-items:center; justify-content:center; }
+.preview-08 .circle { position:absolute; width:60px; height:60px; border:2px solid #e8d4c0; border-radius:50%; top:8px; right:8px; }
+.preview-08 .line { position:absolute; width:40px; height:2px; background:#e8d4c0; bottom:12px; left:8px; transform:rotate(-30deg); }
+.preview-08 .dot { position:absolute; width:6px; height:6px; background:#e8d4c0; border-radius:50%; bottom:18px; right:12px; }
+.preview-08 .content { text-align:center; max-width:85%; }
+.preview-08 .issue { font-size:0.3rem; color:#888; text-transform:uppercase; letter-spacing:0.15em; margin-bottom:4px; }
+.preview-08 h2 { font-family:'Fraunces',serif; font-size:1.5rem; font-weight:900; line-height:0.9; letter-spacing:-0.02em; color:#1a1a1a; }
+.preview-08 h2 span { display:block; font-size:0.4em; color:#888; font-weight:700; letter-spacing:0.1em; }
+.preview-08 .tagline { font-size:0.38rem; color:#888; margin-top:6px; line-height:1.5; }
+.preview-08 .cta { display:inline-block; border:1.5px solid #1a1a1a; padding:3px 10px; font-size:0.32rem; font-weight:500; text-transform:uppercase; letter-spacing:0.1em; color:#1a1a1a; margin-top:8px; }
+
+/* 09 Neon Cyber */
+.preview-09 { background:#0a0f1c; position:relative; overflow:hidden; }
+.preview-09::before { content:''; position:absolute; inset:0; background-image:linear-gradient(rgba(0,255,204,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,204,0.04) 1px, transparent 1px); background-size:20px 20px; }
+.preview-09 .orb { position:absolute; top:-50%; left:20%; width:250px; height:250px; border-radius:50%; background:radial-gradient(ellipse, rgba(0,255,204,0.1) 0%, rgba(255,0,170,0.05) 50%, transparent 70%); filter:blur(20px); }
+.preview-09 .badge { position:absolute; top:8px; left:10px; font-size:0.35rem; font-weight:700; color:#00ffcc; text-transform:uppercase; letter-spacing:0.1em; display:flex; align-items:center; gap:6px; }
+.preview-09 .badge::before { content:''; width:20px; height:2px; background:#00ffcc; box-shadow:0 0 6px #00ffcc; }
+.preview-09 h2 { position:absolute; top:40%; left:10px; font-family:'Manrope',sans-serif; font-size:1.5rem; font-weight:800; color:#e0e8ff; line-height:0.95; }
+.preview-09 h2 .cyan { color:#00ffcc; text-shadow:0 0 15px rgba(0,255,204,0.4); }
+.preview-09 h2 .mag { color:#ff00aa; text-shadow:0 0 15px rgba(255,0,170,0.4); }
+.preview-09 .stats { position:absolute; bottom:10px; left:10px; display:flex; gap:12px; }
+.preview-09 .stat { display:flex; flex-direction:column; }
+.preview-09 .n { font-size:0.7rem; font-weight:800; color:#00ffcc; text-shadow:0 0 10px rgba(0,255,204,0.3); }
+.preview-09 .l { font-size:0.28rem; color:rgba(224,232,255,0.4); text-transform:uppercase; letter-spacing:0.08em; }
+.preview-09 .side { position:absolute; top:50%; right:10px; transform:translateY(-50%) rotate(90deg); font-size:0.3rem; color:rgba(224,232,255,0.2); text-transform:uppercase; letter-spacing:0.15em; }
+
+/* 10 Terminal Green */
+.preview-10 { background:#0d1117; display:flex; align-items:center; justify-content:center; }
+.preview-10 .term { width:92%; background:#161b22; border-radius:5px; border:1px solid rgba(255,255,255,0.06); overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,0.4); }
+.preview-10 .bar { display:flex; align-items:center; gap:4px; padding:5px 8px; background:#1c2128; border-bottom:1px solid rgba(255,255,255,0.04); }
+.preview-10 .dots { display:flex; gap:3px; }
+.preview-10 .dot { width:7px; height:7px; border-radius:50%; }
+.preview-10 .dot-r { background:#ff5f56; }
+.preview-10 .dot-y { background:#ffbd2e; }
+.preview-10 .dot-g { background:#27c93f; }
+.preview-10 .title { flex:1; text-align:center; font-size:0.35rem; color:#7d8590; }
+.preview-10 .body { padding:8px; }
+.preview-10 .line { display:flex; gap:6px; margin-bottom:2px; align-items:flex-start; }
+.preview-10 .prompt { color:#39d353; font-weight:700; font-size:0.4rem; }
+.preview-10 .cmd { font-size:0.38rem; color:#e6edf3; }
+.preview-10 .out { font-size:0.35rem; color:#7d8590; }
+.preview-10 .out .acc { color:#79c0ff; }
+.preview-10 .out .c { color:#8b949e; font-style:italic; }
+.preview-10 .cur { display:inline-block; width:5px; height:8px; background:#39d353; vertical-align:text-bottom; animation:blink 1s step-end infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* 11 Swiss Modern */
+.preview-11 { background:#ffffff; }
+.preview-11 .top-bar { position:absolute; top:0; left:0; right:0; height:4px; background:#ff3300; }
+.preview-11 .bgnum { position:absolute; top:50%; right:0; transform:translateY(-50%); font-family:'Archivo Black',sans-serif; font-size:6rem; font-weight:900; color:rgba(0,0,0,0.04); line-height:1; user-select:none; }
+.preview-11 .content { position:absolute; top:50%; left:15px; transform:translateY(-50%); }
+.preview-11 .tag { font-size:0.35rem; font-weight:600; text-transform:uppercase; letter-spacing:0.15em; color:#ff3300; margin-bottom:4px; }
+.preview-11 h2 { font-family:'Archivo Black',sans-serif; font-size:1.8rem; font-weight:900; line-height:0.9; letter-spacing:-0.02em; }
+.preview-11 .sub { font-size:0.4rem; color:#444; margin-top:6px; line-height:1.5; max-width:35ch; }
+.preview-11 .bottom { position:absolute; bottom:10px; left:15px; right:15px; display:flex; justify-content:space-between; align-items:flex-end; }
+.preview-11 .stat { display:flex; flex-direction:column; }
+.preview-11 .sv { font-family:'Archivo Black',sans-serif; font-size:1rem; color:#000; }
+.preview-11 .sl { font-size:0.3rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:#aaa; }
+.preview-11 .cta { font-size:0.32rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; padding:4px 10px; border:1.5px solid #000; color:#000; }
+
+/* 12 Paper & Ink */
+.preview-12 { background:#faf9f7; }
+.preview-12 .top-rule { position:absolute; top:12px; left:15px; right:15px; display:flex; align-items:center; gap:8px; }
+.preview-12 .tr-label { font-size:0.3rem; font-weight:500; color:#6b6560; text-transform:uppercase; letter-spacing:0.15em; white-space:nowrap; }
+.preview-12 .tr-line { flex:1; height:1px; background:linear-gradient(90deg, #c41e3a, transparent); }
+.preview-12 .content { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; width:90%; }
+.preview-12 h2 { font-family:'Cormorant Garamond',serif; font-size:1.6rem; font-weight:400; line-height:1; margin-bottom:6px; }
+.preview-12 h2 em { font-style:italic; color:#c41e3a; }
+.preview-12 .desc { font-size:0.38rem; color:#6b6560; line-height:1.6; }
+.preview-12 .pull { position:absolute; top:8px; right:10px; max-width:18ch; text-align:right; }
+.preview-12 .pull blockquote { font-family:'Cormorant Garamond',serif; font-size:0.38rem; font-style:italic; color:#6b6560; border-right:1.5px solid #c41e3a; padding-right:6px; }
+.preview-12 .pull cite { display:block; font-size:0.28rem; font-style:normal; color:#c41e3a; margin-top:2px; }
+.preview-12 .bot-rule { position:absolute; bottom:12px; left:15px; right:15px; display:flex; align-items:center; gap:8px; }
+.preview-12 .br-line { flex:1; height:1px; background:linear-gradient(90deg, transparent, #c41e3a); }
+.preview-12 .br-label { font-size:0.3rem; font-weight:500; color:#6b6560; letter-spacing:0.08em; }
+
+@media (max-width: 600px) {
+    .grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr)); }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div class="header-overline">S01 · Agent Loop · 核心闭环</div>
+    <h1>风格预览</h1>
+    <p class="header-sub">12 种预设风格 · 点击任一卡片可在浏览器中预览完整效果</p>
+</div>
+
+<div class="grid">
+
+    <a href="01-bold-signal.html" class="card" target="_blank">
+        <div class="card-preview preview-01">
+            <div class="num">01</div>
+            <div class="card-el">
+                <h2>Agent Loop</h2>
+                <p>核心闭环 · 最小实现</p>
+            </div>
+        </div>
+        <div class="card-info">
+            <span><span class="card-num">01</span> <span class="card-name">Bold Signal</span></span>
+            <span class="card-open">↗ 打开</span>
+        </div>
+    </a>
+
+    <a href="02-electric-studio.html" class="card" target="_blank">
+        <div class="card-preview preview-02">
+            <div class="top"></div>
+            <div class="bot"></div>
+            <div class="bar"></div>
+            <div class="top-txt">S01 · 核心闭环</div>
+            <div class="big-t">Agent<br>Loop</div>
+            <div class="bot-t">
+                <p>"真正的 agent 起点，是把真实工具结果重新喂回模型"</p>
+                <div class="meta">130 LOC · 1个工具</div>
+            </div>
+        </div>
+        <div class="card-info">
+            <span><span class="card-num">02</span> <span class="card-name">Electric Studio</span></span>
+            <span class="card-open">↗ 打开</span>
+        </div>
+    </a>
+
+    <a href="03-creative-voltage.html" class="card" target="_blank">
+        <div class="card-preview preview-03">
+            <div class="left">
+                <div class="badge">S01 · 核心闭环</div>
+                <h2>Agent<br><span>Loop</span></h2>
+            </div>
+            <div class="right">
+                <div class="tag">// 核心概念</div>
+                <p>把"<strong>模型 + 工具</strong>"连接成一个<strong>能持续推进任务</strong>的主循环</p>
+            </div>
+        </div>
+        <div class="card-info">
+            <span><span class="card-num">03</span> <span class="card-name">Creative Voltage</span></span>
+            <span class="card-open">↗ 打开</span>
+        </div>
+    </a>
+
+    <a href="04-dark-botanical.html" class="card" target="_blank">
+        <div class="card-preview preview-04">
+            <div class="shape1"></div>
+            <div class="shape2"></div>
+            <div class="vert"></div>
+            <div class="content">
+                <div class="overline">S01 · 核心闭环</div>
+                <h2>Agent <em>Loop</em></h2>
+                <p class="tagline">把"模型 + 工具"连接成一个能持续推进任务的主循环</p>
+            </div>
+            <div class="quote">
+                <p>"真正的 agent 起点，是把真实工具结果重新喂回模型"</p>
+                <div class="attr">— 核心原则</div>
+            </div>
+        </div>
+        <div class="card-info">
+            <span><span class="card-num">04</span> <span class="card-name">Dark Botanical</span></span>
+            <span class="card-open">↗ 打开</span>
+        </div>
+    </a>
+
+    <a href="05-notebook-tabs.html" class="card" target="_blank">
+        <div class="card-preview preview-05">
+            <div class="paper">
+                <div class="holes"></div>
+                <div class="tabs">
+                    <div class="tab"></div>
+                    <div class="tab"></div>
+                    <div class="tab"></div>
+                    <div class="tab"></div>
+                    <div class="tab"></div>
+                </div>
+                <div class="label">S01 · 核心闭环</div>
+                <h2>Agent <em>Loop</em></h2>
+                <p class="desc">把"模型 + 工具"连接成一个能持续推进任务的主循环</p>
+                <div class="meta">
+                    <div class="meta-item"><span class="meta-l">代码量</span><span class="meta-v">130 LOC</span></div>
+                    <div class="meta-item"><span class="meta-l">工具数</span><span class="meta-v">1 个</span></div>
+                    <div class="meta-item"><span class="meta-l">核心</span><span class="meta-v">消息循环</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="card-info">
+            <span><span class="card-num">05</span> <span class="card-name">Notebook Tabs</span></span>
+            <span class="card-open">↗ 打开</span>
+        </div>
+    </a>
+
+    <a href="06-pastel-geometry.html" class="card" target="_blank">
+        <div class="card-preview preview-06">
+            <div class="card">
+                <div class="left">
+                    <div class="badges">
+                        <span class="badge badge-p">S01</span>
+                        <span class="badge badge-m">核心闭环</span>
+                    </div>
+                    <h2>Agent Loop</h2>
+                    <p class="sub">130 LOC · 最小闭环</p>
+                </div>
+                <div class="pills">
+                    <div class="pill"></div>
+                    <div class="pill"></div>
+                    <div class="pill"></div>
+                    <div class="pill"></div>
+                    <div class="pill"></div>
+                </div>
+            </div>
+        </div>
+        <div class="card-info">
+            <span><span class="card-num">06</span> <span class="card-name">Pastel Geometry</span></span>
+            <span class="card-open">↗ 打开</span>
+        </div>
+    </a>
+
+    <a href="07-split-pastel.html" class="card" target="_blank">
+        <div class="card-preview preview-07">
+            <div class="peach">
+                <div class="label">S01 · 核心闭环</div>
+                <h2>Agent<br><span>Loop</span></h2>
+            </div>
+            <div class="lav">
+                <div class="badge badge-m">130 LOC</div>
+                <div class="badge badge-y">最小闭环</div>
+                <div class="badge badge-p">1 个工具</div>
+                <p class="desc">把"模型 + 工具"连接成一个能持续推进任务的主循环</p>
+            </div>
+        </div>
+        <div class="card-info">
+            <span><span class="card-num">07</span> <span class="card-name">Split Pastel</span></span>
+            <span class="card-open">↗ 打开</span>
+        </div>
+    </a>
+
+    <a href="08-vintage-editorial.html" class="card" target="_blank">
+        <div class="card-preview preview-08">
+            <div class="circle"></div>
+            <div class="line"></div>
+            <div class="dot"></div>
+            <div class="content">
+                <div class="issue">S01 · 核心闭环</div>
+                <h2><span>Agent Loop</span>核心闭环</h2>
+                <p class="tagline">把"模型 + 工具"连接成一个能持续推进任务的主循环</p>
+                <div class="cta">learn.shareai.run</div>
+            </div>
+        </div>
+        <div class="card-info">
+            <span><span class="card-num">08</span> <span class="card-name">Vintage Editorial</span></span>
+            <span class="card-open">↗ 打开</span>
+        </div>
+    </a>
+
+    <a href="09-neon-cyber.html" class="card" target="_blank">
+        <div class="card-preview preview-09">
+            <div class="orb"></div>
+            <div class="badge">S01 · 核心闭环</div>
+            <h2><span class="cyan">Agent</span><br><span class="mag">Loop</span></h2>
+            <div class="stats">
+                <div class="stat"><span class="n">130</span><span class="l">代码行数</span></div>
+                <div class="stat"><span class="n">1</span><span class="l">工具</span></div>
+                <div class="stat"><span class="n">∞</span><span class="l">循环</span></div>
+            </div>
+            <div class="side">核心闭环 · 最小实现</div>
+        </div>
+        <div class="card-info">
+            <span><span class="card-num">09</span> <span class="card-name">Neon Cyber</span></span>
+            <span class="card-open">↗ 打开</span>
+        </div>
+    </a>
+
+    <a href="10-terminal-green.html" class="card" target="_blank">
+        <div class="card-preview preview-10">
+            <div class="term">
+                <div class="bar">
+                    <div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+                    <div class="title">agent_loop.py</div>
+                </div>
+                <div class="body">
+                    <div class="line"><span class="prompt">$</span> <span class="cmd">python agent_loop.py <span class="out c"># S01</span></span></div>
+                    <div class="line"><span class="out"><span class="acc">→</span> Initializing agent loop...</span></div>
+                    <div class="line"><span class="out"><span class="acc">→</span> State: messages=[], turn=1</span></div>
+                    <div class="line"><span class="out"><span class="c">"真正的 agent 起点..."</span></span></div>
+                    <div class="line"><span class="prompt">$</span> <span class="cur"></span></div>
+                </div>
+            </div>
+        </div>
+        <div class="card-info">
+            <span><span class="card-num">10</span> <span class="card-name">Terminal Green</span></span>
+            <span class="card-open">↗ 打开</span>
+        </div>
+    </a>
+
+    <a href="11-swiss-modern.html" class="card" target="_blank">
+        <div class="card-preview preview-11">
+            <div class="top-bar"></div>
+            <div class="bgnum">01</div>
+            <div class="content">
+                <div class="tag">S01 · 核心闭环</div>
+                <h2>AGENT<br>LOOP</h2>
+                <p class="sub">130行代码 · 最小闭环</p>
+            </div>
+            <div class="bottom">
+                <div class="stat"><span class="sv">130</span><span class="sl">代码行数</span></div>
+                <div class="stat"><span class="sv">1</span><span class="sl">工具</span></div>
+                <div class="stat"><span class="sv">∞</span><span class="sl">循环</span></div>
+                <div class="cta">learn.shareai.run</div>
+            </div>
+        </div>
+        <div class="card-info">
+            <span><span class="card-num">11</span> <span class="card-name">Swiss Modern</span></span>
+            <span class="card-open">↗ 打开</span>
+        </div>
+    </a>
+
+    <a href="12-paper-ink.html" class="card" target="_blank">
+        <div class="card-preview preview-12">
+            <div class="top-rule">
+                <span class="tr-label">S01 · 核心闭环</span>
+                <div class="tr-line"></div>
+            </div>
+            <div class="content">
+                <h2>Agent <em>Loop</em></h2>
+                <p class="desc">把"模型 + 工具"连接成一个能持续推进任务的主循环</p>
+            </div>
+            <div class="pull">
+                <blockquote>"真正的 agent 起点，是把真实工具结果重新喂回模型"</blockquote>
+                <cite>— 核心原则</cite>
+            </div>
+            <div class="bot-rule">
+                <div class="br-line"></div>
+                <span class="br-label">learn.shareai.run/zh/s01</span>
+            </div>
+        </div>
+        <div class="card-info">
+            <span><span class="card-num">12</span> <span class="card-name">Paper & Ink</span></span>
+            <span class="card-open">↗ 打开</span>
+        </div>
+    </a>
+
+</div>
+
+<div class="footer">
+    S01 Agent Loop 核心闭环 · 共 12 种风格<br>
+    内容来源：learn.shareai.run/zh/s01 · 用于 Remotion 动画视频制作
+</div>
+
+</body>
+</html>

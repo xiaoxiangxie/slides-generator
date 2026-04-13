@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Style 10: Terminal Green</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* === MANDATORY VIEWPORT BASE === */
+html, body { height: 100%; overflow-x: hidden; }
+html { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+.slide {
+    width: 100vw; height: 100vh; height: 100dvh;
+    overflow: hidden; scroll-snap-align: start;
+    display: flex; flex-direction: column; position: relative;
+}
+:root {
+    --title-size: clamp(1.5rem, 5vw, 4rem);
+    --body-size: clamp(0.75rem, 1.5vw, 1.125rem);
+    --small-size: clamp(0.65rem, 1vw, 0.875rem);
+    --slide-padding: clamp(1rem, 4vw, 4rem);
+    --content-gap: clamp(0.5rem, 2vw, 2rem);
+    --element-gap: clamp(0.25rem, 1vw, 1rem);
+}
+@media (max-height: 700px) { :root { --slide-padding: clamp(0.75rem, 3vw, 2rem); --title-size: clamp(1.25rem, 4.5vw, 2.5rem); } }
+@media (max-height: 600px) { :root { --slide-padding: clamp(0.5rem, 2.5vw, 1.5rem); --title-size: clamp(1.1rem, 4vw, 2rem); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.2s !important; } }
+
+/* === TERMINAL GREEN THEME === */
+:root {
+    --bg-dark: #0d1117;
+    --terminal-green: #39d353;
+    --text-dim: #7d8590;
+    --text-light: #e6edf3;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'JetBrains Mono', monospace; background: var(--bg-dark); color: var(--text-light); }
+
+/* Scanlines */
+.slide::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent 0px,
+        transparent 2px,
+        rgba(0,0,0,0.15) 2px,
+        rgba(0,0,0,0.15) 4px
+    );
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* Terminal window chrome */
+.terminal {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(90vw, 800px);
+    background: #161b22;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 16px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(57,211,83,0.1);
+    overflow: hidden;
+    opacity: 0;
+    animation: termIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards;
+}
+@keyframes termIn { to { opacity: 1; } }
+
+/* Title bar */
+.title-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: clamp(0.5rem, 1.5vw, 0.8rem) clamp(1rem, 2vw, 1.2rem);
+    background: #1c2128;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.title-dots { display: flex; gap: 5px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot-r { background: #ff5f56; }
+.dot-y { background: #ffbd2e; }
+.dot-g { background: #27c93f; }
+.title-text {
+    flex: 1;
+    text-align: center;
+    font-size: var(--small-size);
+    color: var(--text-dim);
+}
+
+/* Body content */
+.term-body {
+    padding: clamp(1.5rem, 4vw, 2.5rem);
+}
+.prompt-line {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5em;
+    margin-bottom: var(--element-gap);
+    opacity: 0;
+    animation: fadeIn 0.4s ease forwards;
+}
+.prompt-line:nth-child(1) { animation-delay: 0.3s; }
+.prompt-line:nth-child(2) { animation-delay: 0.5s; }
+.prompt-line:nth-child(3) { animation-delay: 0.7s; }
+.prompt-line:nth-child(4) { animation-delay: 0.9s; }
+@keyframes fadeIn { to { opacity: 1; } }
+
+.prompt { color: var(--terminal-green); font-weight: 700; }
+.cmd { color: var(--text-light); }
+.output { color: var(--text-dim); font-size: var(--body-size); }
+.comment { color: #8b949e; font-style: italic; }
+.accent { color: #79c0ff; }
+
+/* Blinking cursor */
+.cursor {
+    display: inline-block;
+    width: 8px; height: 1.1em;
+    background: var(--terminal-green);
+    margin-left: 4px;
+    vertical-align: text-bottom;
+    animation: blink 1s step-end infinite;
+}
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+/* Bottom bar */
+.term-footer {
+    padding: clamp(0.4rem, 1vw, 0.6rem) clamp(1rem, 2vw, 1.2rem);
+    background: #1c2128;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--small-size);
+    color: var(--text-dim);
+}
+</style>
+</head>
+<body>
+
+<div class="slide">
+    <div class="terminal">
+        <div class="title-bar">
+            <div class="title-dots">
+                <div class="dot dot-r"></div>
+                <div class="dot dot-y"></div>
+                <div class="dot dot-g"></div>
+            </div>
+            <div class="title-text">agent_loop.py — bash</div>
+        </div>
+        <div class="term-body">
+            <div class="prompt-line">
+                <span class="prompt">$</span>
+                <span class="cmd">python agent_loop.py <span class="comment"># S01: Agent Loop</span></span>
+            </div>
+            <div class="prompt-line">
+                <span class="output"><span class="accent">→</span> Initializing agent loop...</span>
+            </div>
+            <div class="prompt-line">
+                <span class="output"><span class="accent">→</span> State: messages=[], turn_count=1, tool_result=None</span>
+            </div>
+            <div class="prompt-line">
+                <span class="output"><span class="accent">→</span> <span class="comment">"真正的 agent 起点，是把真实工具结果重新喂回模型"</span></span>
+            </div>
+            <div class="prompt-line">
+                <span class="prompt">$</span>
+                <span class="cursor"></span>
+            </div>
+        </div>
+        <div class="term-footer">
+            <span>130 LOC · 1 tool</span>
+            <span>learn.shareai.run/zh/s01</span>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

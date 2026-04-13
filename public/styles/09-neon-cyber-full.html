@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Loop — 09 Neon Cyber</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+/* ===========================================
+   VIEWPORT FITTING: MANDATORY BASE STYLES
+   =========================================== */
+html, body { height: 100%; overflow-x: hidden; }
+html { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+.slide {
+    width: 100vw; height: 100vh; height: 100dvh;
+    overflow: hidden; scroll-snap-align: start;
+    display: flex; flex-direction: column; position: relative;
+}
+.slide-content {
+    flex: 1; display: flex; flex-direction: column;
+    justify-content: center; max-height: 100%; overflow: hidden;
+    padding: var(--slide-padding);
+}
+:root {
+    --title-size: clamp(1.5rem, 5vw, 4rem);
+    --h2-size: clamp(1.25rem, 3.5vw, 2.5rem);
+    --h3-size: clamp(1rem, 2.5vw, 1.75rem);
+    --body-size: clamp(0.75rem, 1.5vw, 1.125rem);
+    --small-size: clamp(0.65rem, 1vw, 0.875rem);
+    --slide-padding: clamp(1rem, 4vw, 4rem);
+    --content-gap: clamp(0.5rem, 2vw, 2rem);
+    --element-gap: clamp(0.25rem, 1vw, 1rem);
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (max-height: 700px) { :root {
+    --slide-padding: clamp(0.75rem, 3vw, 2rem);
+    --title-size: clamp(1.25rem, 4.5vw, 2.5rem);
+    --content-gap: clamp(0.4rem, 1.5vw, 1rem);
+} }
+@media (max-height: 600px) { :root {
+    --slide-padding: clamp(0.5rem, 2.5vw, 1.5rem);
+    --title-size: clamp(1.1rem, 4vw, 2rem);
+} }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.2s !important;
+} }
+
+/* ===========================================
+   NEON CYBER THEME
+   =========================================== */
+:root {
+    --bg-navy: #0a0f1c;
+    --bg-navy-2: #0d1220;
+    --accent-cyan: #00ffcc;
+    --accent-magenta: #ff00aa;
+    --text-light: #e0e8ff;
+    --text-dim: rgba(224,232,255,0.5);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Manrope', sans-serif; background: var(--bg-navy); color: var(--text-light); }
+
+/* Reveal animation */
+.reveal {
+    opacity: 0; transform: translateY(24px);
+    transition: opacity 0.6s var(--ease-out-expo), transform 0.6s var(--ease-out-expo);
+}
+.slide.visible .reveal { opacity: 1; transform: translateY(0); }
+.slide.visible .reveal:nth-child(1) { transition-delay: 0.1s; }
+.slide.visible .reveal:nth-child(2) { transition-delay: 0.2s; }
+.slide.visible .reveal:nth-child(3) { transition-delay: 0.3s; }
+.slide.visible .reveal:nth-child(4) { transition-delay: 0.4s; }
+.slide.visible .reveal:nth-child(5) { transition-delay: 0.5s; }
+.reveal-scale {
+    opacity: 0; transform: scale(0.93);
+    transition: opacity 0.6s var(--ease-out-expo), transform 0.6s var(--ease-out-expo);
+}
+.slide.visible .reveal-scale { opacity: 1; transform: scale(1); }
+
+/* Grid background */
+.slide::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+        linear-gradient(rgba(0,255,204,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,204,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Glow orb */
+.orb {
+    position: absolute;
+    top: -30%;
+    left: 25%;
+    width: clamp(300px, 60vw, 700px);
+    height: clamp(300px, 60vw, 700px);
+    border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(0,255,204,0.1) 0%, rgba(255,0,170,0.05) 40%, transparent 70%);
+    filter: blur(50px);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Neon glow text */
+.text-cyan { color: var(--accent-cyan); text-shadow: 0 0 20px rgba(0,255,204,0.5), 0 0 40px rgba(0,255,204,0.2); }
+.text-magenta { color: var(--accent-magenta); text-shadow: 0 0 20px rgba(255,0,170,0.5), 0 0 40px rgba(255,0,170,0.2); }
+
+/* Badge */
+.cyber-badge {
+    display: inline-flex; align-items: center; gap: 0.6em;
+    font-size: var(--small-size); font-weight: 700;
+    color: var(--accent-cyan); text-transform: uppercase; letter-spacing: 0.15em;
+}
+.cyber-badge::before {
+    content: '';
+    width: clamp(24px, 4vw, 44px); height: 2px;
+    background: var(--accent-cyan);
+    box-shadow: 0 0 8px var(--accent-cyan);
+}
+
+/* Typography */
+.main-title {
+    font-size: clamp(3rem, 9vw, 7rem); font-weight: 800;
+    color: var(--text-light); line-height: 0.95; letter-spacing: -0.02em;
+}
+.section-title {
+    font-size: clamp(2rem, 6vw, 5rem); font-weight: 800;
+    color: var(--text-light); line-height: 0.95; letter-spacing: -0.02em;
+}
+
+/* Stats */
+.stats { display: flex; gap: clamp(2rem, 5vw, 4rem); margin-top: var(--content-gap); }
+.stat { display: flex; flex-direction: column; gap: 4px; }
+.stat-num { font-size: clamp(1.5rem, 4vw, 2.5rem); font-weight: 800; color: var(--accent-cyan); text-shadow: 0 0 20px rgba(0,255,204,0.4); }
+.stat-label { font-size: var(--small-size); color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; }
+
+/* Content */
+.content-block { max-width: 60ch; }
+.content-block p { font-size: var(--body-size); color: var(--text-dim); line-height: 1.65; margin-bottom: var(--element-gap); }
+.content-block strong { color: var(--accent-cyan); font-weight: 700; }
+
+.key-point { display: flex; align-items: flex-start; gap: 0.8em; margin-bottom: var(--element-gap); }
+.key-bullet { flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--accent-cyan); margin-top: 0.5em; box-shadow: 0 0 6px var(--accent-cyan); }
+.key-point p { font-size: var(--body-size); color: rgba(224,232,255,0.75); line-height: 1.6; margin: 0; }
+
+.code-block {
+    background: rgba(0,0,0,0.4); border: 1px solid rgba(0,255,204,0.1);
+    border-radius: 6px; padding: clamp(0.75rem,2vw,1.25rem);
+    font-family: 'Courier New', monospace;
+    font-size: clamp(0.52rem,1.05vw,0.78rem); color: rgba(224,232,255,0.7);
+    line-height: 1.75; overflow-x: auto; white-space: pre;
+}
+.code-block .kw { color: #79c0ff; }
+.code-block .str { color: #a5d6ff; }
+.code-block .fn { color: #d2a8ff; }
+.code-block .cm { color: rgba(139,148,158,0.8); font-style: italic; }
+.code-block .nb { color: var(--accent-cyan); }
+.code-block .type { color: var(--accent-magenta); }
+
+.data-struct {
+    background: rgba(0,0,0,0.3); border: 1px solid rgba(0,255,204,0.08);
+    border-radius: 6px; padding: clamp(0.6rem,1.5vw,1rem);
+    font-family: 'Courier New', monospace;
+    font-size: clamp(0.5rem,1.05vw,0.78rem); color: rgba(224,232,255,0.7); line-height: 1.75;
+    margin-bottom: var(--element-gap);
+}
+.data-struct .key { color: var(--accent-cyan); }
+.data-struct .str { color: #a5d6ff; }
+.data-struct .type { color: var(--accent-magenta); }
+
+.concept-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: clamp(0.5rem,1.5vw,1rem); }
+.concept-item {
+    background: rgba(0,0,0,0.25); border: 1px solid rgba(0,255,204,0.08);
+    border-radius: 6px; padding: clamp(0.6rem,1.5vw,1rem);
+}
+.concept-item h3 { font-size: clamp(0.9rem,1.5vw,1.1rem); font-weight: 700; color: var(--accent-cyan); margin-bottom: 4px; }
+.concept-item p { font-size: var(--small-size); color: var(--text-dim); line-height: 1.5; }
+
+.error-block {
+    background: rgba(255,50,50,0.06); border-left: 3px solid #ff5050;
+    border-radius: 0 4px 4px 0; padding: clamp(0.5rem,1.5vw,0.9rem) clamp(0.75rem,2vw,1.2rem);
+    margin-bottom: var(--element-gap);
+}
+.error-block p { font-size: var(--small-size); color: rgba(224,232,255,0.6); line-height: 1.55; margin-bottom: 3px; }
+.error-block p:last-child { margin-bottom: 0; }
+.error-block strong { color: #ff8080; }
+
+.quote-block { border-left: 3px solid var(--accent-cyan); padding-left: 1em; }
+.quote-block p { font-size: clamp(1rem,2.5vw,1.4rem); font-style: italic; color: rgba(224,232,255,0.8); line-height: 1.5; }
+
+.step-label {
+    font-size: clamp(0.5rem,0.9vw,0.7rem); font-weight: 700;
+    color: var(--accent-cyan); text-transform: uppercase; letter-spacing: 0.2em;
+    margin-bottom: var(--element-gap);
+}
+
+.summary-text {
+    font-size: clamp(1.2rem,3.5vw,2rem); font-weight: 700;
+    color: var(--text-light); line-height: 1.4;
+}
+.summary-text em { font-style: normal; color: var(--accent-cyan); }
+
+.next-badge {
+    display: inline-flex; align-items: center; gap: 0.8em;
+    font-size: var(--body-size); font-weight: 700; color: var(--text-light);
+    border: 1px solid rgba(0,255,204,0.3); padding: 0.5em 1.2em; border-radius: 2px;
+}
+.next-badge .arrow { color: var(--accent-cyan); }
+
+/* Layout helpers */
+.slide-inner {
+    position: relative; z-index: 1;
+    width: 100%; height: 100%;
+    padding: var(--slide-padding);
+    display: flex; flex-direction: column;
+}
+.slide-inner-center {
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column; justify-content: center;
+    width: 100%; height: 100%; padding: var(--slide-padding);
+}
+.split-left { flex: 0 0 42%; display: flex; flex-direction: column; justify-content: center; padding: var(--slide-padding); }
+.split-right { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: var(--slide-padding); }
+
+/* Bottom line accent */
+.bottom-line {
+    position: absolute; bottom: clamp(1.5rem,4vw,3rem); left: var(--slide-padding); right: var(--slide-padding);
+    height: 1px;
+    background: linear-gradient(90deg, var(--accent-cyan), transparent 60%);
+    opacity: 0.3;
+}
+
+/* Side tag vertical */
+.side-tag {
+    position: absolute; top: 50%; right: var(--slide-padding);
+    transform: translateY(-50%) rotate(90deg);
+    transform-origin: center right;
+    font-size: var(--small-size); font-weight: 500;
+    color: rgba(224,232,255,0.2); text-transform: uppercase; letter-spacing: 0.2em;
+    white-space: nowrap;
+}
+
+/* Navigation */
+.nav-dots { position: fixed; right: clamp(0.75rem,2vw,1.5rem); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: clamp(5px,1vh,8px); z-index: 100; }
+.nav-dot { width: clamp(6px,0.8vw,9px); height: clamp(6px,0.8vw,9px); border-radius: 50%; background: rgba(255,255,255,0.15); cursor: pointer; transition: all 0.25s ease; }
+.nav-dot.active { background: var(--accent-cyan); box-shadow: 0 0 8px var(--accent-cyan); }
+.progress-bar { position: fixed; top: 0; left: 0; height: 3px; background: var(--accent-cyan); box-shadow: 0 0 8px var(--accent-cyan); z-index: 100; width: 0%; transition: width 0.3s ease; }
+.keyboard-hint { position: fixed; bottom: clamp(0.75rem,2vw,1.25rem); right: clamp(0.75rem,2vw,1.5rem); font-size: clamp(0.5rem,0.9vw,0.65rem); color: rgba(255,255,255,0.15); z-index: 100; font-family: 'Courier New', monospace; }
+
+/* Inline editing (opt-in) */
+.edit-hotzone { position: fixed; top: 0; left: 0; width: 80px; height: 80px; z-index: 10000; cursor: pointer; }
+.edit-toggle { position: fixed; top: 10px; left: 10px; width: 36px; height: 36px; border-radius: 50%; background: var(--accent-cyan); color: var(--bg-navy); border: none; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 10001; }
+.edit-toggle.show { opacity: 1; pointer-events: auto; }
+.edit-toggle.active { background: var(--bg-navy); color: var(--accent-cyan); border: 2px solid var(--accent-cyan); }
+.edit-banner { position: fixed; top: 0; left: 0; right: 0; background: var(--accent-cyan); color: var(--bg-navy); text-align: center; font-size: 0.7rem; font-weight: 700; padding: 6px; z-index: 10000; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+.edit-banner.active { opacity: 1; pointer-events: auto; }
+[contenteditable="true"] { outline: 2px dashed rgba(0,255,204,0.5); border-radius: 2px; cursor: text; }
+[contenteditable="true"]:focus { outline-color: var(--accent-cyan); }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+<nav class="nav-dots" id="navDots"></nav>
+<div class="keyboard-hint">&#8592; &#8594; / Space / Scroll</div>
+<div class="edit-hotzone" id="editHotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">&#9998;</button>
+<div class="edit-banner" id="editBanner">EDIT MODE &#8212; Ctrl+S to save</div>
+
+<!-- SLIDE 01: TITLE -->
+<section class="slide" data-slide="1">
+    <div class="orb"></div>
+    <div class="slide-inner-center">
+        <div class="cyber-badge reveal">S01 &#183; 核心闭环</div>
+        <h1 class="main-title reveal" style="margin-top:var(--element-gap);">
+            <span class="text-cyan">Agent</span><br>
+            <span class="text-magenta">Loop</span>
+        </h1>
+        <p class="reveal" style="font-size:var(--body-size); color:var(--text-dim); max-width:40ch; line-height:1.6; margin-top:var(--element-gap);">
+            把"模型 + 工具"连接成一个能持续推进任务的主循环
+        </p>
+        <div class="stats reveal">
+            <div class="stat"><span class="stat-num">130</span><span class="stat-label">代码行数</span></div>
+            <div class="stat"><span class="stat-num">1</span><span class="stat-label">工具</span></div>
+            <div class="stat"><span class="stat-num">&#8734;</span><span class="stat-label">循环</span></div>
+        </div>
+        <div class="quote-block reveal" style="margin-top:var(--content-gap); max-width:50ch;">
+            <p>"真正的 agent 起点，是把真实工具结果重新喂回模型，而不只是输出一段文本。"</p>
+        </div>
+    </div>
+    <div class="bottom-line"></div>
+    <div class="side-tag">核心闭环 &#183; Agent Loop &#183; S01</div>
+</section>
+
+<!-- SLIDE 02: PROBLEM -->
+<section class="slide" data-slide="2">
+    <div class="orb"></div>
+    <div class="slide-inner">
+        <div class="split-left">
+            <div class="cyber-badge reveal">S01 &#183; 核心闭环</div>
+            <h2 class="section-title reveal" style="margin-top:var(--element-gap);">
+                这一章<br>要解决<br><span class="text-cyan">什么问题</span>
+            </h2>
+        </div>
+        <div class="split-right">
+            <div class="content-block reveal">
+                <p>语言模型本身只会"<strong>生成下一段内容</strong>"。它不会自己：</p>
+            </div>
+            <div class="content-block reveal">
+                <div class="key-point"><div class="key-bullet"></div><p>打开文件</p></div>
+                <div class="key-point"><div class="key-bullet"></div><p>运行命令</p></div>
+                <div class="key-point"><div class="key-bullet"></div><p>观察报错</p></div>
+                <div class="key-point"><div class="key-bullet"></div><p>把工具结果再接着用于下一步推理</p></div>
+            </div>
+            <div class="quote-block reveal" style="margin-top:var(--content-gap);">
+                <p><strong>核心目标：</strong>把"模型 + 工具"连接成一个能持续推进任务的<strong>主循环</strong>。</p>
+            </div>
+        </div>
+    </div>
+    <div class="bottom-line"></div>
+</section>
+
+<!-- SLIDE 03: KEY CONCEPTS -->
+<section class="slide" data-slide="3">
+    <div class="orb"></div>
+    <div class="slide-inner">
+        <div class="cyber-badge reveal" style="margin-bottom:var(--content-gap);">S01 &#183; 关键概念定义</div>
+        <h2 class="section-title reveal" style="margin-bottom:var(--content-gap);">4 个核心概念</h2>
+        <div class="concept-grid reveal">
+            <div class="concept-item">
+                <h3>loop</h3>
+                <p>"只要任务还没做完，系统就继续重复同一套步骤。"</p>
+            </div>
+            <div class="concept-item">
+                <h3>turn</h3>
+                <p>发消息 &#8594; 读回复 &#8594; 执行工具 &#8594; 写回结果，一轮完整的推理周期。</p>
+            </div>
+            <div class="concept-item">
+                <h3>tool_result</h3>
+                <p>"工具结果必须重新进入消息历史、成为下一轮推理的输入。"</p>
+            </div>
+            <div class="concept-item">
+                <h3>state</h3>
+                <p>"当前运行状态" &#8212; 主循环继续往下走时，需要一直带着走的那份数据。</p>
+            </div>
+        </div>
+    </div>
+    <div class="bottom-line"></div>
+</section>
+
+<!-- SLIDE 04: DATA STRUCTURES -->
+<section class="slide" data-slide="4">
+    <div class="orb"></div>
+    <div class="slide-inner">
+        <div class="cyber-badge reveal" style="margin-bottom:var(--content-gap);">S01 &#183; 关键数据结构</div>
+        <h2 class="section-title reveal" style="margin-bottom:var(--content-gap);">关键数据结构</h2>
+        <div class="reveal" style="display:grid; grid-template-columns:repeat(3,1fr); gap:var(--content-gap);">
+            <div>
+                <div class="step-label">// Message</div>
+                <div class="data-struct">
+{<span class="key">"role"</span>: <span class="str">"user"</span>, <span class="key">"content"</span>: <span class="str">"..."</span>}<br>
+{<span class="key">"role"</span>: <span class="str">"assistant"</span>, <span class="key">"content"</span>: [...]}
+                </div>
+                <p style="font-size:var(--small-size); color:var(--text-dim); margin-top:4px; line-height:1.5;">
+                    消息历史是下一轮的工作上下文
+                </p>
+            </div>
+            <div>
+                <div class="step-label">// Tool Result Block</div>
+                <div class="data-struct">
+{<br>
+  <span class="key">"type"</span>: <span class="str">"tool_result"</span>,<br>
+  <span class="key">"tool_use_id"</span>: <span class="str">"..."</span>,<br>
+  <span class="key">"content"</span>: <span class="str">"..."</span><br>
+}
+                </div>
+            </div>
+            <div>
+                <div class="step-label">// LoopState</div>
+                <div class="data-struct">
+<span class="key">state</span> = {<br>
+  <span class="key">"messages"</span>: [...],<br>
+  <span class="key">"turn_count"</span>: <span class="type">1</span>,<br>
+  <span class="key">"transition_reason"</span>: <span class="type">None</span>,<br>
+}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="bottom-line"></div>
+</section>
+
+<!-- SLIDE 05: STEP 1 -->
+<section class="slide" data-slide="5">
+    <div class="orb"></div>
+    <div class="slide-inner-center">
+        <div class="cyber-badge reveal">S01 &#183; 最小实现步骤</div>
+        <h2 class="section-title reveal" style="margin-top:var(--element-gap);">
+            第一步：<span class="text-cyan">准备</span><br>初始消息
+        </h2>
+        <div class="code-block reveal" style="margin-top:var(--content-gap); max-width:600px;">
+<span class="kw">messages</span> = [{<span class="key">"role"</span>: <span class="str">"user"</span>, <span class="key">"content"</span>: query}]
+        </div>
+        <div class="content-block reveal" style="margin-top:var(--content-gap);">
+            <p>用用户的查询启动<strong>初始消息列表</strong>，这是整个循环的起点。</p>
+        </div>
+        <div class="quote-block reveal" style="margin-top:var(--element-gap); max-width:45ch;">
+            <p>从一条用户消息开始，模型就能在此基础上进行第一轮推理。</p>
+        </div>
+    </div>
+    <div class="bottom-line"></div>
+</section>
+
+<!-- SLIDE 06: STEP 2 -->
+<section class="slide" data-slide="6">
+    <div class="orb"></div>
+    <div class="slide-inner-center">
+        <div class="cyber-badge reveal">S01 &#183; 最小实现步骤</div>
+        <h2 class="section-title reveal" style="margin-top:var(--element-gap);">
+            第二步：<span class="text-cyan">调用</span><br>模型
+        </h2>
+        <div class="code-block reveal" style="margin-top:var(--content-gap); max-width:600px;">
+<span class="kw">response</span> = client.messages.create(<br>
+  model    = <span class="type">MODEL</span>,<br>
+  system   = <span class="type">SYSTEM</span>,<br>
+  messages = <span class="key">messages</span>,<br>
+  tools    = <span class="type">TOOLS</span>,<br>
+  max_tokens = <span class="nb">8000</span>,<br>
+)</div>
+        <div class="content-block reveal" style="margin-top:var(--content-gap);">
+            <p>把当前<strong>整个消息历史</strong>发给模型，让它决定下一步动作。</p>
+        </div>
+    </div>
+    <div class="bottom-line"></div>
+</section>
+
+<!-- SLIDE 07: STEP 3 -->
+<section class="slide" data-slide="7">
+    <div class="orb"></div>
+    <div class="slide-inner-center">
+        <div class="cyber-badge reveal">S01 &#183; 最小实现步骤</div>
+        <h2 class="section-title reveal" style="margin-top:var(--element-gap);">
+            第三步：<span class="text-cyan">追加</span><br>assistant 回复
+        </h2>
+        <div class="code-block reveal" style="margin-top:var(--content-gap); max-width:600px;">
+<span class="key">messages</span>.append({<br>
+  <span class="key">"role"</span>: <span class="str">"assistant"</span>,<br>
+  <span class="key">"content"</span>: response.content,<br>
+})</div>
+        <div class="error-block reveal" style="margin-top:var(--content-gap); max-width:550px;">
+            <p><strong>很多初学者会忽略这一步。</strong></p>
+            <p>只关心"最后有没有答案"，忽略把 assistant 回复本身写回历史。</p>
+        </div>
+    </div>
+    <div class="bottom-line"></div>
+</section>
+
+<!-- SLIDE 08: STEPS 4 & 5 -->
+<section class="slide" data-slide="8">
+    <div class="orb"></div>
+    <div class="slide-inner">
+        <div class="cyber-badge reveal" style="margin-bottom:var(--content-gap);">S01 &#183; 最小实现步骤</div>
+        <h2 class="section-title reveal" style="margin-bottom:var(--content-gap);">
+            第四步 &amp; 第五步：<br><span class="text-cyan">执行</span> &amp; <span class="text-magenta">写回</span>
+        </h2>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--content-gap);">
+            <div class="reveal">
+                <div class="step-label">Step 04 &#8212; 执行工具</div>
+                <div class="code-block">
+<span class="cm"># 遍历 response.content 中的所有 block</span>
+<span class="kw">for</span> block <span class="kw">in</span> response.content:<br>
+    <span class="kw">if</span> block.type == <span class="str">"tool_use"</span>:<br>
+        output = <span class="fn">run_tool</span>(block)</div>
+            </div>
+            <div class="reveal">
+                <div class="step-label">Step 05 &#8212; 写回结果</div>
+                <div class="code-block">
+<span class="key">messages</span>.append({<br>
+  <span class="key">"role"</span>: <span class="str">"user"</span>,<br>
+  <span class="key">"content"</span>: results,<br>
+})<br>
+<span class="key">state</span>[<span class="str">"turn_count"</span>] += <span class="nb">1</span></div>
+            </div>
+        </div>
+    </div>
+    <div class="bottom-line"></div>
+</section>
+
+<!-- SLIDE 09: COMPLETE CODE -->
+<section class="slide" data-slide="9">
+    <div class="orb"></div>
+    <div class="slide-inner">
+        <div class="cyber-badge reveal" style="margin-bottom:var(--content-gap);">S01 &#183; 完整循环代码</div>
+        <h2 class="section-title reveal" style="margin-bottom:var(--content-gap);">
+            完整循环代码 <span class="text-cyan">(45行)</span>
+        </h2>
+        <div class="code-block reveal-scale" style="max-width:100%;">
+<span class="kw">def</span> <span class="fn">agent_loop</span>(state):
+    <span class="kw">while</span> <span class="type">True</span>:
+        response = client.messages.create(
+            model    = <span class="type">MODEL</span>,
+            system   = <span class="type">SYSTEM</span>,
+            messages = state[<span class="str">"messages"</span>],
+            tools    = <span class="type">TOOLS</span>,
+            max_tokens = <span class="nb">8000</span>,
+        )
+        state[<span class="str">"messages"</span>].append({
+            <span class="key">"role"</span>: <span class="str">"assistant"</span>,
+            <span class="key">"content"</span>: response.content,
+        })
+        <span class="kw">if</span> response.stop_reason != <span class="str">"tool_use"</span>:
+            state[<span class="str">"transition_reason"</span>] = <span class="type">None</span>
+            <span class="kw">return</span>
+        results = []
+        <span class="kw">for</span> block <span class="kw">in</span> response.content:
+            <span class="kw">if</span> block.type == <span class="str">"tool_use"</span>:
+                output = <span class="fn">run_tool</span>(block)
+                results.append({
+                    <span class="key">"type"</span>: <span class="str">"tool_result"</span>,
+                    <span class="key">"tool_use_id"</span>: block.id,
+                    <span class="key">"content"</span>: output,
+                })
+        state[<span class="str">"messages"</span>].append(
+            {<span class="key">"role"</span>: <span class="str">"user"</span>, <span class="key">"content"</span>: results}
+        )
+        state[<span class="str">"turn_count"</span>] += <span class="nb">1</span>
+        state[<span class="str">"transition_reason"</span>] = <span class="str">"tool_result"</span></div>
+    </div>
+    <div class="bottom-line"></div>
+</section>
+
+<!-- SLIDE 10: WHY SIMPLIFIED -->
+<section class="slide" data-slide="10">
+    <div class="orb"></div>
+    <div class="slide-inner-center">
+        <div class="cyber-badge reveal">S01 &#183; 核心闭环</div>
+        <h2 class="section-title reveal" style="margin-top:var(--element-gap);">
+            为什么先<br><span class="text-magenta">接受简化</span>
+        </h2>
+        <div class="quote-block reveal" style="margin-top:var(--content-gap); max-width:50ch;">
+            <p>初学者在第一章真正要学会的，不是所有复杂边界，而是：</p>
+        </div>
+        <div class="content-block reveal" style="margin-top:var(--element-gap);">
+            <div class="key-point"><div class="key-bullet"></div><p><strong>assistant 回复</strong>要写回历史</p></div>
+            <div class="key-point"><div class="key-bullet"></div><p><strong>tool_result</strong> 要写回历史</p></div>
+            <div class="key-point"><div class="key-bullet"></div><p>主循环要<strong>持续推进</strong></p></div>
+        </div>
+        <p class="reveal" style="font-size:var(--small-size); color:var(--text-dim); margin-top:var(--content-gap);">
+            流式、并发、恢复、压缩这些高级内容，留给后续章节。
+        </p>
+    </div>
+    <div class="bottom-line"></div>
+</section>
+
+<!-- SLIDE 11: COMMON MISTAKES -->
+<section class="slide" data-slide="11">
+    <div class="orb"></div>
+    <div class="slide-inner">
+        <div class="cyber-badge reveal" style="margin-bottom:var(--content-gap);">S01 &#183; 核心闭环</div>
+        <h2 class="section-title reveal" style="margin-bottom:var(--content-gap);">
+            最容易<br><span class="text-magenta">犯的错</span>
+        </h2>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--element-gap);">
+            <div class="error-block reveal">
+                <p><strong>&#10060; 工具结果打印出来，但不写回 messages</strong></p>
+                <p>模型下一轮根本看不到真实执行结果</p>
+            </div>
+            <div class="error-block reveal">
+                <p><strong>&#10060; 只保存用户消息，不保存 assistant 消息</strong></p>
+                <p>上下文会断层</p>
+            </div>
+            <div class="error-block reveal">
+                <p><strong>&#10060; 不给工具结果绑定 tool_use_id</strong></p>
+                <p>模型会分不清哪条结果对应哪次调用</p>
+            </div>
+            <div class="error-block reveal">
+                <p><strong>&#10060; 一上来就塞进流式、并发、恢复、压缩</strong></p>
+                <p>第一章还消化不了这些</p>
+            </div>
+        </div>
+        <div class="error-block reveal" style="margin-top:var(--element-gap);">
+            <p><strong>&#10060; 以为 messages 只是聊天展示</strong></p>
+            <p>在 agent 里，messages 更像"下一轮工作输入"，而不仅仅是聊天记录</p>
+        </div>
+    </div>
+    <div class="bottom-line"></div>
+</section>
+
+<!-- SLIDE 12: SUMMARY & NEXT -->
+<section class="slide" data-slide="12">
+    <div class="orb"></div>
+    <div class="slide-inner-center">
+        <div class="cyber-badge reveal">S01 &#183; 核心闭环</div>
+        <h2 class="section-title reveal" style="margin-top:var(--element-gap);">
+            一句话<br><span class="text-cyan">记住</span>
+        </h2>
+        <div class="summary-text reveal" style="margin-top:var(--content-gap); max-width:55ch;">
+            Agent Loop 的本质，<br>
+            是把"模型的<em>动作意图</em>"变成<br>
+            "真实<em>执行结果</em>"，<br>
+            再把结果送回模型继续推理。
+        </div>
+        <div class="reveal" style="margin-top:var(--content-gap);">
+            <div class="next-badge">
+                下一章预告：工具使用
+                <span class="arrow">&#8594;</span>
+                s02
+            </div>
+        </div>
+        <div class="reveal" style="margin-top:var(--content-gap);">
+            <p style="font-size:var(--small-size); color:var(--text-dim);">
+                learn.shareai.run/zh/s01
+            </p>
+        </div>
+    </div>
+    <div class="bottom-line"></div>
+</section>
+
+<script>
+class SlidePresentation {
+    constructor() {
+        this.slides = document.querySelectorAll('.slide');
+        this.currentSlide = 0;
+        this.totalSlides = this.slides.length;
+        this.isEditing = false;
+        this.progressBar = document.getElementById('progressBar');
+        this.navDotsContainer = document.getElementById('navDots');
+        this.editToggle = document.getElementById('editToggle');
+        this.editBanner = document.getElementById('editBanner');
+        this.editHotzone = document.getElementById('editHotzone');
+        this.init();
+    }
+    init() {
+        this.setupIntersectionObserver();
+        this.setupKeyboardNav();
+        this.setupProgressBar();
+        this.setupNavDots();
+        this.setupInlineEditing();
+        this.setupEditKeyboard();
+        this.slides[0].classList.add('visible');
+        this.updateNavDots(0);
+        this.updateProgress(0);
+    }
+    setupIntersectionObserver() {
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    const idx = Array.from(this.slides).indexOf(entry.target);
+                    this.currentSlide = idx;
+                    this.updateNavDots(idx);
+                    this.updateProgress(idx);
+                }
+            });
+        }, { threshold: 0.5 });
+        this.slides.forEach(slide => observer.observe(slide));
+    }
+    setupKeyboardNav() {
+        document.addEventListener('keydown', (e) => {
+            if (this.isEditing) return;
+            if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+                e.preventDefault();
+                this.goToSlide(Math.min(this.currentSlide + 1, this.totalSlides - 1));
+            } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                e.preventDefault();
+                this.goToSlide(Math.max(this.currentSlide - 1, 0));
+            }
+        });
+    }
+    updateProgress(idx) {
+        const pct = ((idx + 1) / this.totalSlides) * 100;
+        this.progressBar.style.width = pct + '%';
+    }
+    setupNavDots() {
+        this.navDotsContainer.innerHTML = '';
+        this.slides.forEach((_, i) => {
+            const dot = document.createElement('div');
+            dot.className = 'nav-dot' + (i === 0 ? ' active' : '');
+            dot.addEventListener('click', () => this.goToSlide(i));
+            this.navDotsContainer.appendChild(dot);
+        });
+    }
+    updateNavDots(idx) {
+        const dots = this.navDotsContainer.querySelectorAll('.nav-dot');
+        dots.forEach((dot, i) => dot.classList.toggle('active', i === idx));
+    }
+    goToSlide(idx) { this.slides[idx].scrollIntoView({ behavior: 'smooth' }); }
+    setupInlineEditing() {
+        document.querySelectorAll('h1,h2,p,span').forEach(el => { el.setAttribute('contenteditable', 'false'); });
+        let hideTimeout = null;
+        this.editHotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); this.editToggle.classList.add('show'); });
+        this.editHotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!this.isEditing) this.editToggle.classList.remove('show'); }, 400); });
+        this.editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+        this.editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!this.isEditing) this.editToggle.classList.remove('show'); }, 400); });
+        this.editToggle.addEventListener('click', () => this.toggleEditMode());
+        this.editHotzone.addEventListener('click', () => this.toggleEditMode());
+    }
+    toggleEditMode() {
+        this.isEditing = !this.isEditing;
+        if (this.isEditing) {
+            document.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('contenteditable', 'true'));
+            document.body.classList.add('edit-active');
+            this.editToggle.classList.add('active', 'show');
+            this.editBanner.classList.add('active');
+        } else {
+            document.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('contenteditable', 'false'));
+            document.body.classList.remove('edit-active');
+            this.editToggle.classList.remove('active', 'show');
+            this.editBanner.classList.remove('active');
+        }
+    }
+    setupEditKeyboard() {
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); if (this.isEditing) this.exportFile(); }
+            if (e.key === 'e' || e.key === 'E') { if (!e.target.getAttribute('contenteditable')) this.toggleEditMode(); }
+        });
+    }
+    exportFile() {
+        const editableEls = Array.from(document.querySelectorAll('[contenteditable]'));
+        editableEls.forEach(el => el.removeAttribute('contenteditable'));
+        document.body.classList.remove('edit-active');
+        this.editToggle.classList.remove('active', 'show');
+        this.editBanner.classList.remove('active');
+        const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+        document.body.classList.add('edit-active');
+        editableEls.forEach(el => el.setAttribute('contenteditable', 'true'));
+        this.editToggle.classList.add('active');
+        const blob = new Blob([html], { type: 'text/html' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'agent-loop-09-neon-cyber.html';
+        a.click();
+        URL.revokeObjectURL(a.href);
+    }
+}
+new SlidePresentation();
+</script>
+</body>
+</html>

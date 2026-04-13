@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Style 09: Neon Cyber</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+/* === MANDATORY VIEWPORT BASE === */
+html, body { height: 100%; overflow-x: hidden; }
+html { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+.slide {
+    width: 100vw; height: 100vh; height: 100dvh;
+    overflow: hidden; scroll-snap-align: start;
+    display: flex; flex-direction: column; position: relative;
+}
+:root {
+    --title-size: clamp(1.5rem, 5vw, 4rem);
+    --body-size: clamp(0.75rem, 1.5vw, 1.125rem);
+    --small-size: clamp(0.65rem, 1vw, 0.875rem);
+    --slide-padding: clamp(1rem, 4vw, 4rem);
+    --content-gap: clamp(0.5rem, 2vw, 2rem);
+    --element-gap: clamp(0.25rem, 1vw, 1rem);
+}
+@media (max-height: 700px) { :root { --slide-padding: clamp(0.75rem, 3vw, 2rem); --title-size: clamp(1.25rem, 4.5vw, 2.5rem); } }
+@media (max-height: 600px) { :root { --slide-padding: clamp(0.5rem, 2.5vw, 1.5rem); --title-size: clamp(1.1rem, 4vw, 2rem); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.2s !important; } }
+
+/* === NEON CYBER THEME === */
+:root {
+    --bg-navy: #0a0f1c;
+    --accent-cyan: #00ffcc;
+    --accent-magenta: #ff00aa;
+    --text-light: #e0e8ff;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Manrope', sans-serif; background: var(--bg-navy); color: var(--text-light); }
+
+/* Grid background */
+.slide::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+        linear-gradient(rgba(0,255,204,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,204,0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+}
+
+/* Glow orb */
+.orb {
+    position: absolute;
+    top: -30%;
+    left: 30%;
+    width: clamp(300px, 60vw, 700px);
+    height: clamp(300px, 60vw, 700px);
+    border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(0,255,204,0.08) 0%, rgba(255,0,170,0.05) 40%, transparent 70%);
+    filter: blur(40px);
+    pointer-events: none;
+}
+
+/* Top badge */
+.badge {
+    position: absolute;
+    top: clamp(1.5rem, 4vw, 3rem);
+    left: clamp(1.5rem, 5vw, 4rem);
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    font-size: var(--small-size);
+    font-weight: 700;
+    color: var(--accent-cyan);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    opacity: 0;
+    animation: fadeIn 0.6s ease 0.2s forwards;
+}
+.badge::before {
+    content: '';
+    width: clamp(30px, 5vw, 50px);
+    height: 2px;
+    background: var(--accent-cyan);
+    box-shadow: 0 0 8px var(--accent-cyan);
+}
+@keyframes fadeIn { to { opacity: 1; } }
+
+/* Main title */
+.main-title {
+    position: absolute;
+    top: 50%; left: clamp(1.5rem, 5vw, 4rem);
+    transform: translateY(-50%);
+    opacity: 0;
+    animation: fadeIn 0.8s ease 0.3s forwards;
+}
+h1 {
+    font-size: clamp(3rem, 9vw, 7rem);
+    font-weight: 800;
+    color: var(--text-light);
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+    margin-bottom: var(--content-gap);
+}
+h1 .accent { color: var(--accent-cyan); text-shadow: 0 0 30px rgba(0,255,204,0.5); }
+h1 .magenta { color: var(--accent-magenta); text-shadow: 0 0 30px rgba(255,0,170,0.5); }
+
+/* Stats row */
+.stats {
+    display: flex;
+    gap: clamp(1.5rem, 4vw, 3rem);
+    margin-top: var(--content-gap);
+    opacity: 0;
+    animation: fadeIn 0.7s ease 0.5s forwards;
+}
+.stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.stat-num {
+    font-size: clamp(1.5rem, 4vw, 2.5rem);
+    font-weight: 800;
+    color: var(--accent-cyan);
+    text-shadow: 0 0 20px rgba(0,255,204,0.4);
+}
+.stat-label {
+    font-size: var(--small-size);
+    color: rgba(224,232,255,0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+/* Right side tagline */
+.side-tag {
+    position: absolute;
+    top: 50%; right: clamp(1.5rem, 5vw, 4rem);
+    transform: translateY(-50%) rotate(90deg);
+    transform-origin: center right;
+    font-size: var(--small-size);
+    font-weight: 500;
+    color: rgba(224,232,255,0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    white-space: nowrap;
+}
+
+/* Bottom line */
+.bottom-line {
+    position: absolute;
+    bottom: clamp(1.5rem, 4vw, 3rem);
+    left: clamp(1.5rem, 5vw, 4rem);
+    right: clamp(1.5rem, 5vw, 4rem);
+    height: 1px;
+    background: linear-gradient(90deg, var(--accent-cyan), transparent 50%);
+    opacity: 0;
+    animation: fadeIn 0.8s ease 0.8s forwards;
+}
+</style>
+</head>
+<body>
+
+<div class="slide">
+    <div class="orb"></div>
+
+    <div class="badge">S01 · 核心闭环</div>
+
+    <div class="main-title">
+        <h1><span class="accent">Agent</span><br><span class="magenta">Loop</span></h1>
+        <div class="stats">
+            <div class="stat">
+                <span class="stat-num">130</span>
+                <span class="stat-label">代码行数</span>
+            </div>
+            <div class="stat">
+                <span class="stat-num">1</span>
+                <span class="stat-label">工具</span>
+            </div>
+            <div class="stat">
+                <span class="stat-num">∞</span>
+                <span class="stat-label">循环</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="side-tag">核心闭环 · 最小实现</div>
+    <div class="bottom-line"></div>
+</div>
+
+</body>
+</html>

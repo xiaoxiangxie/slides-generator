@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Notebook Tabs Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@400;700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #2d2d2d;
+  font-family: 'DM Sans', sans-serif;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6%;
+  color: #1a1a1a;
+  overflow: hidden;
+}
+
+.paper { width:88%; height:80%; background:#f8f6f1; border-radius:4px; box-shadow:0 12px 40px rgba(0,0,0,0.4); padding:10% 12% 10% 28%; position:relative; }
+.holes { position:absolute; left:10%; top:50%; transform:translateY(-50%); width:8px; height:40px; background:repeating-linear-gradient(to bottom, transparent 0, transparent 6px, #2d2d2d 6px, #2d2d2d 9px, transparent 9px, transparent 15px); }
+.tabs { position:absolute; right:-4px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:3px; }
+.tab { width:6px; border-radius:2px 0 0 2px; }
+.tab:nth-child(1){height:18px;background:#98d4bb}
+.tab:nth-child(2){height:28px;background:#c7b8ea}
+.tab:nth-child(3){height:14px;background:#f4b8c5}
+.tab:nth-child(4){height:22px;background:#a8d8ea}
+.tab:nth-child(5){height:16px;background:#ffe6a7}
+.label { font-size:clamp(0.35rem,0.85vw,0.55rem); color:#c7b8ea; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:3%; }
+h1 { font-family:'Bodoni Moda',serif; font-size:clamp(1.2rem,3.5vw,2.2rem); font-weight:700; color:#1a1a1a; line-height:1.1; margin-bottom:4%; }
+h1 em { font-style:italic; color:#f4b8c5; }
+.desc { font-size:clamp(0.42rem,1.1vw,0.68rem); color:#888; line-height:1.5; }
+.meta { margin-top:auto; padding-top:6%; border-top:1px solid rgba(0,0,0,0.08); display:flex; gap:10%; }
+.meta-l { font-size:clamp(0.3rem,0.75vw,0.48rem); color:#bbb; text-transform:uppercase; }
+.meta-v { font-size:clamp(0.38rem,0.9vw,0.6rem); font-weight:500; color:#1a1a1a; }
+
+</style>
+</head>
+<body>
+<div class="paper">
+  <div class="holes"></div>
+  <div class="tabs">
+    <div class="tab"></div><div class="tab"></div><div class="tab"></div>
+    <div class="tab"></div><div class="tab"></div>
+  </div>
+  <div class="label">S01 · 核心闭环</div>
+  <h1>Agent <em>Loop</em></h1>
+  <p class="desc">把"模型 + 工具"连接成一个能持续推进任务的主循环</p>
+  <div class="meta">
+    <div><div class="meta-l">代码量</div><div class="meta-v">130 LOC</div></div>
+    <div><div class="meta-l">工具数</div><div class="meta-v">1 个</div></div>
+    <div><div class="meta-l">核心</div><div class="meta-v">消息循环</div></div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pastel Geometry Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&family=Plus+Jakarta+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #c8d9e6;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6%;
+  color: #1a1a1a;
+  overflow: hidden;
+}
+
+.card { width:88%; background:#faf9f7; border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,0.1); padding:8%; display:flex; gap:8%; align-items:center; }
+.left { flex:1; }
+.badges { display:flex; gap:4px; margin-bottom:4%; }
+.badge { font-size:clamp(0.3rem,0.75vw,0.48rem); font-weight:700; padding:2px 6px; border-radius:20px; }
+.badge-p { background:#f0b4d4; color:#7a3a5a; }
+.badge-m { background:#a8d4c4; color:#3a6a5a; }
+h1 { font-family:'Plus Jakarta Sans',sans-serif; font-size:clamp(1rem,2.5vw,1.6rem); font-weight:800; color:#1a1a1a; line-height:1.05; margin-bottom:2%; }
+.sub { font-size:clamp(0.38rem,0.9vw,0.6rem); color:#888; }
+.pills { display:flex; flex-direction:column; gap:4px; justify-content:center; height:100%; }
+.pill { width:16px; border-radius:3px; }
+.pill:nth-child(1){height:20px;background:#f0b4d4}
+.pill:nth-child(2){height:32px;background:#a8d4c4}
+.pill:nth-child(3){height:16px;background:#5a7c6a}
+.pill:nth-child(4){height:26px;background:#9b8dc4}
+.pill:nth-child(5){height:22px;background:#7c6aad}
+
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="left">
+    <div class="badges">
+      <span class="badge badge-p">S01</span>
+      <span class="badge badge-m">核心闭环</span>
+    </div>
+    <h1>Agent Loop</h1>
+    <p class="sub">130 LOC · 最小闭环</p>
+  </div>
+  <div class="pills">
+    <div class="pill"></div><div class="pill"></div>
+    <div class="pill"></div><div class="pill"></div><div class="pill"></div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Electric Studio Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&family=Manrope:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a0a;
+  font-family: 'Manrope', sans-serif;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6%;
+  color: #ffffff;
+  overflow: hidden;
+}
+
+.split { display:flex; width:100%; height:100%; border-radius:6px; overflow:hidden; box-shadow:0 16px 48px rgba(0,0,0,0.5); }
+.left { width:45%; background:#0a0a0a; padding:8%; position:relative; display:flex; flex-direction:column; justify-content:center; }
+.left::before { content:''; position:absolute; top:0; left:0; width:4px; height:100%; background:#4361ee; }
+.right { width:55%; background:#fff; padding:8%; display:flex; flex-direction:column; justify-content:center; }
+.label { font-size:clamp(0.38rem,0.9vw,0.58rem); font-weight:800; color:#4361ee; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:4%; }
+.big-t { font-family:'Manrope',sans-serif; font-size:clamp(1.4rem,4.5vw,3rem); font-weight:800; color:#fff; line-height:0.95; margin-bottom:6%; animation: fadeUp 0.7s ease 0.2s both; }
+.quote { font-size:clamp(0.42rem,1.1vw,0.68rem); color:#0a0a0a; line-height:1.6; max-width:38ch; animation: fadeUp 0.7s ease 0.4s both; }
+.meta { margin-top:4%; font-size:clamp(0.35rem,0.85vw,0.55rem); color:#888; animation: fadeUp 0.7s ease 0.5s both; }
+@keyframes fadeUp { to { opacity:1; transform:translateY(0); } }
+
+</style>
+</head>
+<body>
+<div class="split">
+  <div class="left">
+    <div class="label">S01 · 核心闭环</div>
+    <div class="big-t">Agent<br>Loop</div>
+  </div>
+  <div class="right">
+    <p class="quote">"真正的 agent 起点，是把真实工具结果重新喂回模型"</p>
+    <div class="meta">130 LOC · 1 个工具</div>
+  </div>
+</div>
+</body>
+</html>
