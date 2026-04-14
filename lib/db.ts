@@ -22,6 +22,8 @@ function getDb(): Database.Database {
 
   _db = new Database(DB_PATH);
   _db.pragma("journal_mode = WAL");
+
+  // 基础表（原有字段）
   _db.exec(`
     CREATE TABLE IF NOT EXISTS jobs (
       id          TEXT PRIMARY KEY,
@@ -31,11 +33,19 @@ function getDb(): Database.Database {
       progress    INTEGER NOT NULL DEFAULT 0,
       htmlPath    TEXT NOT NULL DEFAULT '',
       error       TEXT NOT NULL DEFAULT '',
-      name        TEXT NOT NULL DEFAULT '',
-      endedAt     INTEGER NOT NULL DEFAULT 0,
       createdAt   INTEGER NOT NULL DEFAULT (unixepoch())
     )
   `);
+
+  // 增量迁移：新增字段（ALTER TABLE ADD COLUMN 对已存在的列是 no-op）
+  const migrations = [
+    "ALTER TABLE jobs ADD COLUMN name TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE jobs ADD COLUMN endedAt INTEGER NOT NULL DEFAULT 0",
+  ];
+
+  for (const sql of migrations) {
+    try { _db.exec(sql); } catch { /* 列已存在，忽略 */ }
+  }
 
   return _db;
 }
