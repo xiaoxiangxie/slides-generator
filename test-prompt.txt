@@ -1,0 +1,1 @@
+请用 agent-browser 打开 https://example.com/ 并截图，将截图保存为 example.png
