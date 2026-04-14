@@ -58,8 +58,9 @@ export default function Home() {
         const res = await fetch("/api/tasks");
         if (res.ok) {
           const serverTasks: TaskRecord[] = await res.json();
-          // 用 SQLite 数据作为唯一数据源，写入 localStorage 保持一致
-          const trimmed = serverTasks.slice(-30);
+          // 倒序排列：最新的在最前面
+          const sorted = [...serverTasks].sort((a,b) => b.createdAt - a.createdAt);
+          const trimmed = sorted.slice(0, 30);
           localStorage.setItem("slides-tasks", JSON.stringify(trimmed));
           setTasks(trimmed);
         } else {
@@ -178,18 +179,25 @@ export default function Home() {
           <div className="task-panel__head">
             <span>{tasks.length} Task{tasks.length !== 1 ? "s" : ""}</span>
             {tasks.length > 0 && (
-              <button className="task-panel__clear" onClick={() => { setTasks([]); setShowTaskList(false); }}>Clear</button>
+              <button className="task-panel__clear" onClick={async () => { 
+                // 只清除客户端显示，实际删除需要调接口。这里简单处理为清空列表。
+                localStorage.removeItem("slides-tasks");
+                setTasks([]); 
+                setShowTaskList(false); 
+              }}>Clear List</button>
             )}
           </div>
           {tasks.length === 0 && <div className="task-panel__empty">No tasks yet</div>}
-          {[...tasks].reverse().map(task => {
+          {tasks.map((task, idx) => {
+            const taskNumber = tasks.length - idx;
             const duration = task.endedAt && task.createdAt ? formatDuration(task.endedAt - task.createdAt) : "";
             const isFinal = task.status === "done" || task.status === "error" || task.status === "cancelled";
             return (
               <div key={task.id} className={`task-row task-row--${task.status}`}>
                 {/* Top: name + status badge + actions */}
                 <div className="task-row__top">
-                  <div className="task-row__name" title={task.name}>{task.name || `#${task.id}`}</div>
+                  <div className="task-row__id">#{String(taskNumber).padStart(2, "0")}</div>
+                  <div className="task-row__name" title={task.name}>{task.name || "Untitled Slide"}</div>
                   <div className="task-row__badges">
                     {task.status === "generating" && (
                       <span className="badge badge--running">
@@ -210,8 +218,13 @@ export default function Home() {
                   <div className="task-row__bar"><div style={{ width: `${task.progress}%` }} /></div>
                 )}
 
-                {/* Step label */}
-                <div className="task-row__step">{task.step}</div>
+                {/* Step label with animation for running tasks */}
+                <div className={`task-row__step ${task.status === "generating" ? "task-row__step--active" : ""}`}>
+                  {task.status === "generating" && (
+                    <span className="task-row__skill-tag">{task.skill || "system"}</span>
+                  )}
+                  {task.step}
+                </div>
 
                 {/* Times row */}
                 <div className="task-row__times">
@@ -548,10 +561,21 @@ export default function Home() {
         }
 
         .task-row__name {
-          font-size: 0.75rem; font-weight: 600; color: var(--text);
+          font-size: 0.72rem; font-weight: 600; color: var(--text);
           flex: 1; min-width: 0;
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
           line-height: 1.3;
+        }
+
+        .task-row__id {
+          font-family: var(--font-mono);
+          font-size: 0.65rem;
+          color: var(--text3);
+          font-weight: 700;
+          background: var(--bg2);
+          padding: 1px 4px;
+          border-radius: 4px;
+          margin-right: 2px;
         }
 
         .task-row__badges { display: flex; gap: 0.3rem; flex-shrink: 0; align-items: center; }
@@ -576,18 +600,51 @@ export default function Home() {
         .badge--cancelled { background: rgba(107,101,96,0.10); color: var(--text3); }
 
         .task-row__bar {
-          height: 2px; background: var(--border);
-          border-radius: 1px; overflow: hidden;
+          height: 3px; background: var(--border);
+          border-radius: 4px; overflow: hidden;
+          margin: 2px 0;
         }
 
         .task-row__bar div {
           height: 100%; background: var(--accent);
-          transition: width 0.4s;
+          transition: width 0.4s cubic-bezier(0.1, 0.7, 0.1, 1);
+          background-image: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+          background-size: 200% 100%;
+          animation: bar-shine 2s linear infinite;
+        }
+
+        @keyframes bar-shine {
+          from { background-position: 200% 0; }
+          to { background-position: -200% 0; }
         }
 
         .task-row__step {
-          font-size: 0.7rem; color: var(--text2); line-height: 1.3;
+          font-size: 0.68rem; color: var(--text2); line-height: 1.4;
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+          display: flex; align-items: center; gap: 6px;
+        }
+
+        .task-row__step--active {
+          color: var(--accent);
+          font-weight: 500;
+          animation: step-fade 2s ease-in-out infinite;
+        }
+
+        @keyframes step-fade {
+          0%, 100% { opacity: 0.7; }
+          50% { opacity: 1; }
+        }
+
+        .task-row__skill-tag {
+          font-family: var(--font-mono);
+          font-size: 0.58rem;
+          text-transform: uppercase;
+          background: var(--accent);
+          color: #fff;
+          padding: 1px 5px;
+          border-radius: 3px;
+          letter-spacing: 0.05em;
+          flex-shrink: 0;
         }
 
         .task-row__times {

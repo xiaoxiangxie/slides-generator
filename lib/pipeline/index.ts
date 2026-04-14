@@ -1,0 +1,266 @@
+// input:  用户输入（URL/文本）、风格参数、回调
+// output: HTML 幻灯片文件路径
+// pos:    Pipeline 编排器，串联三步 Claude Code CLI 调用
+// ⚠️ 一旦此文件被更新，务必更新头部注释及所属文件夹的 FOLDER.md
+
+import path from "path";
+import { mkdir, writeFile, readFile } from "fs/promises";
+import { existsSync } from "fs";
+import { callClaude } from "./claude-runner";
+import { buildFetchPrompt, buildPlanPrompt, buildSlidePrompt } from "./prompts";
+import { updateJob, getJob, getHtmlPath } from "@/lib/task-store";
+import type { StylePreset } from "@/lib/style-presets";
+
+/** 从用户输入中提取任务名称 */
+function extractName(input: string, inputType: "url" | "text"): string {
+  if (inputType === "url") {
+    try {
+      const url = new URL(input);
+      const domain = url.hostname.replace(/^www\./, "");
+      const segments = url.pathname.replace(/^\//, "").split("/").filter(Boolean);
+      if (segments.length > 0) {
+        return `${domain}/${segments.slice(-2).join("/")}`;
+      }
+      return domain;
+    } catch {
+      return input.slice(0, 60);
+    }
+  }
+  // Text: first non-empty line, truncated
+  const firstLine = input.split("\n").find((l) => l.trim().length > 0) || input;
+  return firstLine.trim().slice(0, 60);
+}
+
+/** 检查任务是否已被取消 */
+function isCancelled(id: string): boolean {
+  const job = getJob(id);
+  return job?.status === "cancelled";
+}
+
+/** 若已取消则静默退出（不抛异常，不更新状态） */
+function abortIfCancelled(id: string): void {
+  if (isCancelled(id)) {
+    throw new Error("TASK_CANCELLED");
+  }
+}
+
+export interface PipelineInput {
+  id: string;
+  input: string;
+  inputType: "url" | "text";
+  style: StylePreset;
+  aspectRatio: string;
+}
+
+function cleanClaudeOutput(output: string, type: "html" | "markdown"): string {
+  const codeBlockRegex = new RegExp(`\`\`\`${type}\\s*\\n([\\s\\S]*?)\`\`\``);
+  const match = output.match(codeBlockRegex);
+  if (match) return match[1].trim();
+
+  // Fallback to any code block
+  const matchAny = output.match(/```[\s\S]*?\n([\s\S]*?)```/);
+  if (matchAny) return matchAny[1].trim();
+
+  return output.trim();
+}
+
+/**
+ * 执行完整的幻灯片生成流水线
+ *
+ * URL 输入：  Step 1 → Step 2 → Step 3
+ * 文本输入：  Step 2 → Step 3（跳过抓取）
+ */
+export async function runPipeline(opts: PipelineInput): Promise<void> {
+  const { id, input, inputType, style, aspectRatio } = opts;
+  const cwd = process.cwd();
+
+  // Set task name immediately
+  updateJob(id, { name: extractName(input, inputType) });
+
+  const totalSteps = inputType === "url" ? 4 : 3;
+  let currentStep = 0;
+
+  // 创建 pipeline 工作目录
+  const pipelineDir = path.join(cwd, ".claude-pipeline", id);
+  await mkdir(pipelineDir, { recursive: true });
+
+  const contentPath = path.join(pipelineDir, "01-content.md");
+  const outlinePath = path.join(pipelineDir, "02-outline.md");
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const htmlPath = getHtmlPath(id, dateStr);
+  const fullOutputPath = path.join(cwd, "public", "output", dateStr, id + ".html");
+  await mkdir(path.join(cwd, "public", "output", dateStr), { recursive: true });
+
+  try {
+    // ============================================================
+    // Step 1: 内容抓取（仅 URL 输入）
+    // ============================================================
+    if (inputType === "url") {
+      currentStep++;
+      updateJob(id, {
+        status: "generating",
+        skill: "agent-browser",
+        step: `[${currentStep}/${totalSteps}] 正在抓取页面内容...`,
+        progress: 10,
+      });
+
+      const fetchPrompt = buildFetchPrompt(input, contentPath);
+      const fetchResult = await callClaude(fetchPrompt, {
+        cwd,
+        timeout: 180_000, // 3 分钟
+        onStdout: (chunk) => {
+          process.stdout.write(chunk);
+        },
+      });
+
+      if (!fetchResult.success) {
+        throw new Error(
+          "Step 1 (内容抓取) 失败: " +
+            (fetchResult.stderr.slice(-300) || "执行错误")
+        );
+      }
+
+      const cleanMD = cleanClaudeOutput(fetchResult.stdout, "markdown");
+      if (cleanMD.length < 50) {
+        throw new Error("Step 1 抓取的内容太短（< 50 字），请检查 URL 是否正确。Claude:" + fetchResult.stdout.slice(0, 100));
+      }
+      await writeFile(contentPath, cleanMD, "utf-8");
+
+      updateJob(id, {
+        step: `[${currentStep}/${totalSteps}] 内容抓取完成`,
+        progress: 25,
+      });
+    } else {
+      // 文本输入：直接写入 content 文件
+      await writeFile(contentPath, input, "utf-8");
+    }
+
+    abortIfCancelled(id);
+
+    // ============================================================
+    // Step 1.5: 分析篇幅
+    // ============================================================
+    currentStep++;
+    updateJob(id, {
+      status: "generating",
+      skill: "system",
+      step: `[${currentStep}/${totalSteps}] 正在智能分析内容规模...`,
+      progress: inputType === "url" ? 30 : 10,
+    });
+
+    const rawContent = await readFile(contentPath, "utf-8");
+    let targetSlideCount = 8;
+    let rangeType = "适中";
+
+    if (rawContent.length < 800) {
+      rangeType = "简洁";
+      targetSlideCount = Math.max(1, Math.min(3, Math.ceil(rawContent.length / 200)));
+    } else if (rawContent.length < 3000) {
+      rangeType = "适中";
+      targetSlideCount = Math.max(4, Math.min(10, Math.ceil(rawContent.length / 300)));
+    } else {
+      rangeType = "详细";
+      targetSlideCount = Math.max(11, Math.min(20, Math.ceil(rawContent.length / 400)));
+    }
+    
+    // 稍微停顿让前端有动画效果
+    await new Promise(resolve => setTimeout(resolve, 800));
+    abortIfCancelled(id);
+
+    // ============================================================
+    // Step 2: 内容规划
+    // ============================================================
+    currentStep++;
+    updateJob(id, {
+      status: "generating",
+      skill: "ljg-writes",
+      step: `[${currentStep}/${totalSteps}] 正在规划结构（${rangeType}规模, 预计${targetSlideCount}页）...`,
+      progress: inputType === "url" ? 35 : 15,
+    });
+
+    const planPrompt = buildPlanPrompt(contentPath, outlinePath, targetSlideCount, rangeType);
+    const planResult = await callClaude(planPrompt, {
+      cwd,
+      timeout: 180_000, // 3 分钟
+      extraArgs: ["--tools", '""'], // 禁用工具
+      onStdout: (chunk) => {
+        process.stdout.write(chunk);
+      },
+    });
+
+    if (!planResult.success) {
+      throw new Error(
+        "Step 2 (内容规划) 失败: " +
+          (planResult.stderr.slice(-300) || "执行错误")
+      );
+    }
+    
+    const cleanOutline = cleanClaudeOutput(planResult.stdout, "markdown");
+    await writeFile(outlinePath, cleanOutline, "utf-8");
+
+    updateJob(id, {
+      step: `[${currentStep}/${totalSteps}] 内容规划完成`,
+      progress: inputType === "url" ? 55 : 40,
+    });
+
+    abortIfCancelled(id);
+
+    // ============================================================
+    // Step 3: 幻灯片生成
+    // ============================================================
+    currentStep++;
+    updateJob(id, {
+      status: "generating",
+      skill: "frontend-slides",
+      step: `[${currentStep}/${totalSteps}] 正在生成 HTML 幻灯片...`,
+      progress: inputType === "url" ? 60 : 45,
+    });
+
+    // 根据预估页数动态调整超时
+    // 基准：8页=180s，每多1页+30s，上限540s（9分钟）
+    const slideTimeout = Math.min(180_000 + (targetSlideCount - 8) * 30_000, 540_000);
+
+    const slidePrompt = buildSlidePrompt(outlinePath, fullOutputPath, style, aspectRatio);
+    const slideResult = await callClaude(slidePrompt, {
+      cwd,
+      timeout: slideTimeout,
+      extraArgs: ["--tools", '""'], // 禁用工具
+      onStdout: (chunk) => {
+        process.stdout.write(chunk);
+      },
+    });
+
+    if (!slideResult.success) {
+      throw new Error(
+        "Step 3 (幻灯片生成) 失败: " +
+          (slideResult.stderr.slice(-300) || "执行错误")
+      );
+    }
+
+    const cleanHTML = cleanClaudeOutput(slideResult.stdout, "html");
+    await writeFile(fullOutputPath, cleanHTML, "utf-8");
+
+    // ============================================================
+    // 完成
+    // ============================================================
+    updateJob(id, {
+      status: "done",
+      skill: "",
+      step: "Done!",
+      progress: 100,
+      htmlPath,
+      endedAt: Math.floor(Date.now() / 1000),
+    });
+  } catch (e: any) {
+    // 若已由 cancelJob 设置为 cancelled，不覆盖为 error
+    if (e.message === "TASK_CANCELLED") return;
+    updateJob(id, {
+      status: "error",
+      skill: "",
+      step: "Failed: " + e.message,
+      error: e.message,
+      endedAt: Math.floor(Date.now() / 1000),
+    });
+    throw e;
+  }
+}

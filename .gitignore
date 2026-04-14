@@ -25,11 +25,15 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+err.log
+out.log
 
 # Claude Code session files
 .claude/
 .claude-pipeline/
-lib/pipeline/
 
 # SQLite database (auto-created at runtime)
 .data/
+
+# Skill execution artifacts
+url-to-markdown/
