@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const { input, inputType, styleId, aspectRatio, taskName } = await req.json();
+    const { input, inputType, styleId, aspectRatio, taskName, videoStyle } = await req.json();
 
     if (!input?.trim()) {
       return NextResponse.json({ error: "content cannot be empty" }, { status: 400 });
@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
       style,
       aspectRatio: aspectRatio || "16:9",
       taskName: taskName || "",
+      videoStyle: videoStyle || "normal",
     }).catch((e) => {
       console.error("[Pipeline error]", e);
       updateJob(id, { status: "error", step: "Pipeline failed", error: e.message });

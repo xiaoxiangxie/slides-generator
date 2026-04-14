@@ -210,3 +210,24 @@ export const ASPECT_RATIOS = [
   { id: "16:9", name: "横屏 16:9", hint: "适合 YouTube / 电脑端" },
   { id: "9:16", name: "竖屏 9:16", hint: "适合抖音 / 小红书" },
 ];
+
+// ── Video Style ──────────────────────────────────────────
+
+export type VideoStyle = "normal" | "fast" | "slow";
+
+export interface VideoStyleDef {
+  id: VideoStyle;
+  name: string;
+  nameCn: string;
+  /** 每秒读多少个字（中文按字符算） */
+  wordsPerSec: number;
+  /** 句子之间的气口，单位秒 */
+  gap: number;
+  hint: string;
+}
+
+export const VIDEO_STYLES: VideoStyleDef[] = [
+  { id: "normal", name: "Normal",    nameCn: "普通",   wordsPerSec: 5, gap: 1.2, hint: "科普、教学" },
+  { id: "fast",   name: "Fast",      nameCn: "快节奏", wordsPerSec: 7, gap: 1.0, hint: "搞笑、资讯" },
+  { id: "slow",   name: "Slow",      nameCn: "慢速",   wordsPerSec: 3, gap: 1.5, hint: "催眠、读书、冥想" },
+];

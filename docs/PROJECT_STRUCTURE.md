@@ -43,6 +43,8 @@ slides-generator/
 ├── public/
 │   └── output/                   #   生成的幻灯片（按日期，.gitignore）
 │
+├── remotion/                     #   由 pipeline 动态生成的视频渲染临时目录（.gitignore）
+│
 ├── .data/                        #   SQLite 数据库文件（.gitignore）
 │
 ├── docs/                         # 项目文档
@@ -68,6 +70,7 @@ slides-generator/
 | 改 SSE 推送 | `app/api/generate/sse/route.ts` |
 | 改任务列表同步 | `app/api/tasks/route.ts` |
 | 改 Pipeline 逻辑 | `lib/pipeline/index.ts` |
+| 改视频渲染逻辑 | `lib/pipeline/remotion-runner.ts` |
 | 改 Claude CLI 调用 | `lib/pipeline/claude-runner.ts` |
 | 改 Prompt 模板 | `lib/pipeline/prompts.ts` |
 | 改数据库表结构 | `lib/db.ts` |

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { STYLE_PRESETS, ASPECT_RATIOS } from "@/lib/style-presets";
+import { STYLE_PRESETS, ASPECT_RATIOS, VIDEO_STYLES, type VideoStyle } from "@/lib/style-presets";
 import { getTasks, addTask, updateTask, type TaskRecord } from "@/lib/generation-store";
 
 /** 从用户输入中提取任务名称 */
@@ -47,6 +47,7 @@ export default function Home() {
   const [taskName, setTaskName] = useState("");
   const [selectedStyle, setSelectedStyle] = useState(STYLE_PRESETS[0].id);
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16">("16:9");
+  const [videoStyle, setVideoStyle] = useState<VideoStyle>("normal");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
@@ -114,7 +115,7 @@ export default function Home() {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: input.trim(), inputType, styleId: selectedStyle, aspectRatio, taskName: taskName.trim() }),
+        body: JSON.stringify({ input: input.trim(), inputType, styleId: selectedStyle, aspectRatio, taskName: taskName.trim(), videoStyle }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "生成失败");
@@ -226,7 +227,10 @@ export default function Home() {
                       </span>
                     )}
                     {task.status === "done" && (
-                      <a href={"/preview/" + task.id} target="_blank" rel="noopener" className="badge badge--done">Done ↗</a>
+                      <>
+                        <a href={"/preview/" + task.id} target="_blank" rel="noopener" className="badge badge--done">Done ↗</a>
+                        {task.videoPath && <a href={task.videoPath} target="_blank" rel="noopener" className="badge badge--video">Video ↗</a>}
+                      </>
                     )}
                     {task.status === "error" && <span className="badge badge--error">Error</span>}
                     {task.status === "cancelled" && <span className="badge badge--cancelled">Cancelled</span>}
@@ -379,20 +383,36 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Ratio + Generate row */}
+            {/* Ratio + VideoStyle + Generate row */}
             <div className="bottom-row">
-              <div className="ratio-group">
-                {ASPECT_RATIOS.map(r => (
-                  <button
-                    key={r.id}
-                    className={`ratio ${aspectRatio === r.id ? "ratio--on" : ""}`}
-                    onClick={() => setAspectRatio(r.id as "16:9" | "9:16")}
-                    title={r.hint}
-                  >
-                    {r.name}
-                  </button>
-                ))}
+              <div className="options-col">
+                <div className="ratio-group">
+                  {ASPECT_RATIOS.map(r => (
+                    <button
+                      key={r.id}
+                      className={`ratio ${aspectRatio === r.id ? "ratio--on" : ""}`}
+                      onClick={() => setAspectRatio(r.id as "16:9" | "9:16")}
+                      title={r.hint}
+                    >
+                      {r.name}
+                    </button>
+                  ))}
+                </div>
+                {/* 增加 Video Style 选项 */}
+                <div className="video-style-group" style={{ display: 'flex', gap: '0.4rem', marginTop: '0.5rem' }}>
+                  {VIDEO_STYLES.map(s => (
+                    <button
+                      key={s.id}
+                      className={`vstyle-btn ${videoStyle === s.id ? "vstyle-btn--on" : ""}`}
+                      onClick={() => setVideoStyle(s.id)}
+                      title={s.hint}
+                    >
+                      {s.nameCn}
+                    </button>
+                  ))}
+                </div>
               </div>
+
               <button onClick={handleGenerate} disabled={loading} className="gen-btn">
                 {loading ? (
                   <><svg className="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" strokeLinecap="round"/></svg> Generating...</>
@@ -625,6 +645,7 @@ export default function Home() {
           animation: pulse 1.5s ease-in-out infinite;
         }
         .badge--done { background: rgba(74,138,90,0.12); color: var(--success); }
+        .badge--video { background: rgba(184,132,74,0.12); color: var(--accent); }
         .badge--error { background: rgba(192,69,58,0.12); color: var(--danger); }
         .badge--cancelled { background: rgba(107,101,96,0.10); color: var(--text3); }
 
@@ -979,6 +1000,11 @@ export default function Home() {
           align-items: center;
         }
 
+        .options-col {
+          display: flex;
+          flex-direction: column;
+        }
+
         .ratio-group { display: flex; gap: 0.3rem; }
 
         .ratio {
@@ -997,6 +1023,17 @@ export default function Home() {
 
         .ratio:hover { border-color: var(--border2); color: var(--text); }
         .ratio--on { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+        .vstyle-btn {
+          flex: 1; padding: 0.25rem 0.6rem;
+          background: var(--bg2); border: 1.5px solid var(--border);
+          border-radius: var(--radius-sm);
+          color: var(--text2); font-size: 0.68rem; font-weight: 500;
+          font-family: var(--font-body);
+          cursor: pointer; transition: all 0.15s;
+        }
+        .vstyle-btn:hover { border-color: var(--border2); color: var(--text); }
+        .vstyle-btn--on { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
 
         .gen-btn {
           flex: 1;

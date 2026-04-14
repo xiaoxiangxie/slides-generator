@@ -1,6 +1,6 @@
 // input:  用户输入（URL/文本）、风格参数、回调
-// output: HTML 幻灯片文件路径
-// pos:    Pipeline 编排器，串联三步 Claude Code CLI 调用
+// output: HTML 幻灯片文件路径（+ 可选视频 + SRT）
+// pos:    Pipeline 编排器，串联三步 Claude Code CLI 调用 + 可选 Remotion 渲染
 // ⚠️ 一旦此文件被更新，务必更新头部注释及所属文件夹的 FOLDER.md
 
 import path from "path";
@@ -9,8 +9,9 @@ import { existsSync } from "fs";
 import MD5 from "crypto-js/md5";
 import { callClaude } from "./claude-runner";
 import { buildFetchPrompt, buildPlanPrompt, buildSlidePrompt } from "./prompts";
-import { updateJob, getJob, getHtmlPath } from "@/lib/task-store";
-import type { StylePreset } from "@/lib/style-presets";
+import { updateJob, getJob, getHtmlPath, getVideoPath } from "@/lib/task-store";
+import type { StylePreset, VideoStyle } from "@/lib/style-presets";
+import { runRemotionRender } from "./remotion-runner";
 
 /** 获取输入的内容指纹（用于缓存） */
 function getInputHash(input: string): string {
@@ -70,10 +71,11 @@ export interface PipelineInput {
   style: StylePreset;
   aspectRatio: string;
   taskName?: string;
+  videoStyle?: VideoStyle;
 }
 
 export async function runPipeline(opts: PipelineInput): Promise<void> {
-  const { id, input, inputType, style, aspectRatio, taskName } = opts;
+  const { id, input, inputType, style, aspectRatio, taskName, videoStyle = "normal" } = opts;
   const cwd = process.cwd();
 
   // Set task name: 前端传入优先，否则自动提取
@@ -97,8 +99,9 @@ export async function runPipeline(opts: PipelineInput): Promise<void> {
 
   const dateStr = new Date().toISOString().slice(0, 10);
   const htmlPath = getHtmlPath(id, dateStr);
-  const fullOutputPath = path.join(cwd, "public", "output", dateStr, id + ".html");
-  await mkdir(path.join(cwd, "public", "output", dateStr), { recursive: true });
+  const taskOutputDir = path.join(cwd, "public", "output", dateStr, id);
+  const fullOutputPath = path.join(taskOutputDir, id + ".html");
+  await mkdir(taskOutputDir, { recursive: true });
 
   try {
     // ============================================================
@@ -266,6 +269,52 @@ export async function runPipeline(opts: PipelineInput): Promise<void> {
     await writeFile(fullOutputPath, cleanHTML, "utf-8");
 
     // ============================================================
+    // Step 4: 渲染 Remotion 视频
+    // ============================================================
+    currentStep++;
+    let mp4Path = "";
+    
+    // 如果启用了视频渲染（视频风格有效），则执行渲染过程
+    if (videoStyle) {
+      updateJob(id, {
+        status: "generating",
+        skill: "remotion",
+        step: `[${currentStep}/${totalSteps + 1}] 正在渲染视频 (${videoStyle}风格)...`,
+        progress: inputType === "url" ? 75 : 60,
+      });
+
+      try {
+        const renderResult = await runRemotionRender({
+          taskId: id,
+          htmlPath: fullOutputPath,
+          outlinePath: outlinePath,
+          outputDir: taskOutputDir,
+          dimensions: {
+            width: aspectRatio === "16:9" ? 1920 : 1080,
+            height: aspectRatio === "16:9" ? 1080 : 1920,
+          },
+          videoStyle: videoStyle,
+          onProgress: (msg) => {
+            updateJob(id, { step: `[${currentStep}/${totalSteps + 1}] 渲染中: ${msg}` });
+          },
+        });
+        
+        mp4Path = getVideoPath(id, dateStr);
+        
+        updateJob(id, {
+          progress: inputType === "url" ? 95 : 90,
+          step: `[${currentStep}/${totalSteps + 1}] 视频渲染完成`,
+        });
+      } catch (err: any) {
+         // 注意：我们让视频渲染失败不阻塞整体 pipeline 成功，但会记录日志
+         console.error("[Remotion Render Error]", err);
+         updateJob(id, {
+          step: `[${currentStep}/${totalSteps + 1}] 视频渲染失败，跳过...`,
+         });
+      }
+    }
+
+    // ============================================================
     // 完成
     // ============================================================
     updateJob(id, {
@@ -274,6 +323,7 @@ export async function runPipeline(opts: PipelineInput): Promise<void> {
       step: "Done!",
       progress: 100,
       htmlPath,
+      videoPath: mp4Path, // 记录 mp4 地址（如果有）
       endedAt: Math.floor(Date.now() / 1000),
     });
   } catch (e: any) {

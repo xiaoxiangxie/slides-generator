@@ -3,7 +3,7 @@
  * 替代 generation-store (localStorage) + task-store (内存 Map)
  *
  * 表结构:
- *   jobs: { id, status, skill, step, progress, htmlPath, error, name, endedAt, createdAt }
+ *   jobs: { id, status, skill, step, progress, htmlPath, error, name, endedAt, createdAt, videoStyle, videoPath }
  */
 
 import Database from "better-sqlite3";
@@ -41,6 +41,8 @@ function getDb(): Database.Database {
   const migrations = [
     "ALTER TABLE jobs ADD COLUMN name TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE jobs ADD COLUMN endedAt INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE jobs ADD COLUMN videoStyle TEXT NOT NULL DEFAULT 'normal'",
+    "ALTER TABLE jobs ADD COLUMN videoPath TEXT NOT NULL DEFAULT ''",
   ];
 
   for (const sql of migrations) {
@@ -63,14 +65,16 @@ export interface JobRecord {
   name: string;
   endedAt: number;
   createdAt: number;
+  videoStyle: "normal" | "fast" | "slow";
+  videoPath: string;
 }
 
-export function createJob(id: string, name: string = ""): void {
+export function createJob(id: string, name: string = "", videoStyle: "normal" | "fast" | "slow" = "normal"): void {
   const db = getDb();
   db.prepare(`
-    INSERT OR IGNORE INTO jobs (id, status, skill, step, progress, htmlPath, error, name, endedAt, createdAt)
-    VALUES (?, 'pending', '', '', 0, '', '', ?, 0, unixepoch())
-  `).run(id, name);
+    INSERT OR IGNORE INTO jobs (id, status, skill, step, progress, htmlPath, error, name, endedAt, createdAt, videoStyle, videoPath)
+    VALUES (?, 'pending', '', '', 0, '', '', ?, 0, unixepoch(), ?, '')
+  `).run(id, name, videoStyle);
 }
 
 export function getJob(id: string): JobRecord | undefined {
@@ -92,6 +96,8 @@ export function updateJob(id: string, updates: Partial<JobRecord>): void {
   if (updates.error !== undefined) { sets.push("error = ?"); values.push(updates.error); }
   if (updates.name !== undefined) { sets.push("name = ?"); values.push(updates.name); }
   if (updates.endedAt !== undefined) { sets.push("endedAt = ?"); values.push(updates.endedAt); }
+  if (updates.videoStyle !== undefined) { sets.push("videoStyle = ?"); values.push(updates.videoStyle); }
+  if (updates.videoPath !== undefined) { sets.push("videoPath = ?"); values.push(updates.videoPath); }
 
   if (sets.length === 0) return;
   values.push(id);
@@ -115,7 +121,11 @@ export function cancelJob(id: string): void {
 }
 
 export function getHtmlPath(id: string, dateStr: string): string {
-  return `/output/${dateStr}/${id}.html`;
+  return `/output/${dateStr}/${id}/${id}.html`;
+}
+
+export function getVideoPath(id: string, dateStr: string): string {
+  return `/output/${dateStr}/${id}/${id}.mp4`;
 }
 
 // ── Task list helpers (used by home page) ─────────────────
@@ -131,6 +141,8 @@ export interface TaskRecord {
   name: string;
   endedAt: number;
   createdAt: number;
+  videoStyle: "normal" | "fast" | "slow";
+  videoPath: string;
 }
 
 /** Get recent tasks for the home page list (most recent first) */
@@ -146,9 +158,9 @@ export function getTasks(): TaskRecord[] {
 export function addTask(task: TaskRecord): void {
   const db = getDb();
   db.prepare(`
-    INSERT OR REPLACE INTO jobs (id, status, skill, step, progress, htmlPath, error, name, endedAt, createdAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(task.id, task.status, task.skill, task.step, task.progress, task.htmlPath, task.error ?? "", task.name, task.endedAt ?? 0, task.createdAt);
+    INSERT OR REPLACE INTO jobs (id, status, skill, step, progress, htmlPath, error, name, endedAt, createdAt, videoStyle, videoPath)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(task.id, task.status, task.skill, task.step, task.progress, task.htmlPath, task.error ?? "", task.name, task.endedAt ?? 0, task.createdAt, task.videoStyle ?? "normal", task.videoPath ?? "");
 }
 
 /** Update a task by id */

@@ -15,6 +15,8 @@ export interface TaskRecord {
   name: string;
   endedAt: number;
   createdAt: number;
+  videoStyle?: string;
+  videoPath?: string;
 }
 
 const STORAGE_KEY = "slides-tasks";

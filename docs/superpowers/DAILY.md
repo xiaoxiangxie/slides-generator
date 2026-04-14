@@ -1,6 +1,17 @@
 # 变更日志
 
-## 2026-04-14
+## 2026-04-14 (下)
+
+### 功能增强：Remotion 视频自动生成集成
+- Pipeline 在生成 HTML (+ 02-outline.md) 后，追加视频生成步骤 (Step 4)
+- 通过 `lib/pipeline/remotion-runner.ts` 动态创建独立的 Remotion 项目隔离环境 (`/remotion/{taskId}`)
+- 支持三种视频速率风格（Normal / Fast / Slow），动态计算字幕时间点并渲染 `.mp4`
+- 同步生成 `.srt` 字幕供剪映等二次剪辑导入
+- 首页 UI 增加 `videoStyle` 按钮，任务状态新增 `Video ↗` 直达链接
+- SQLite 数据库 (`lib/db.ts`) 和 Client Store 同步扩充了 `videoStyle` 与 `videoPath` 字段的持久化支持
+- HTML 输出目录变更为单独目录 `/public/output/{date}/{id}/{id}.html` 以整合资源存放
+
+## 2026-04-14 (上)
 
 ### 架构升级：状态层迁移至 SQLite
 
