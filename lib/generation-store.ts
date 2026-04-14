@@ -23,7 +23,9 @@ export function getTasks(): TaskRecord[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const tasks: TaskRecord[] = raw ? JSON.parse(raw) : [];
+    // 始终按创建时间倒序（最新在前）
+    return tasks.sort((a, b) => b.createdAt - a.createdAt);
   } catch {
     return [];
   }

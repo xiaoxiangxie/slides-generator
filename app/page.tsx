@@ -44,6 +44,7 @@ function formatDuration(seconds: number): string {
 export default function Home() {
   const [input, setInput] = useState("");
   const [inputType, setInputType] = useState<"url" | "text">("url");
+  const [taskName, setTaskName] = useState("");
   const [selectedStyle, setSelectedStyle] = useState(STYLE_PRESETS[0].id);
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16">("16:9");
   const [loading, setLoading] = useState(false);
@@ -113,11 +114,11 @@ export default function Home() {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: input.trim(), inputType, styleId: selectedStyle, aspectRatio }),
+        body: JSON.stringify({ input: input.trim(), inputType, styleId: selectedStyle, aspectRatio, taskName: taskName.trim() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "生成失败");
-      const name = extractTaskName(input.trim(), inputType);
+      const name = taskName.trim() || extractTaskName(input.trim(), inputType);
       const task: TaskRecord = { id: data.id, status: "generating", skill: "frontend-slides", step: "Starting...", progress: 10, htmlPath: "", error: "", name, endedAt: 0, createdAt: Math.floor(Date.now() / 1000) };
       addTask(task);
       setTasks([...getTasks()]);
@@ -138,9 +139,19 @@ export default function Home() {
 
   async function deleteTask(id: string) {
     try {
-      await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Delete failed: " + res.status);
       setTasks((prev) => prev.filter((t) => t.id !== id));
-    } catch {/* silently ignore */}
+    } catch (e) {
+      console.error("[deleteTask]", e);
+      // 失败时刷新列表以同步最新状态
+      const res = await fetch("/api/tasks");
+      if (res.ok) {
+        const serverTasks: TaskRecord[] = await res.json();
+        const sorted = [...serverTasks].sort((a, b) => b.createdAt - a.createdAt);
+        setTasks(sorted.slice(0, 30));
+      }
+    }
   }
 
   const selectedPreset = STYLE_PRESETS.find(s => s.id === selectedStyle)!;
@@ -164,6 +175,7 @@ export default function Home() {
             <span className="header__stat-label">styles</span>
           </div>
           <button
+            id="task-btn-header"
             className={`task-btn ${runningCount > 0 ? "task-btn--running" : doneCount > 0 ? "task-btn--done" : ""}`}
             onClick={() => setShowTaskList(v => !v)}
           >
@@ -173,9 +185,17 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Click-away overlay for task panel */}
+      {showTaskList && (
+        <div 
+          style={{ position: "fixed", inset: 0, zIndex: 199 }} 
+          onClick={() => setShowTaskList(false)}
+        />
+      )}
+
       {/* Task dropdown */}
       {showTaskList && (
-        <div className="task-panel">
+        <div className="task-panel" onClick={(e) => e.stopPropagation()}>
           <div className="task-panel__head">
             <span>{tasks.length} Task{tasks.length !== 1 ? "s" : ""}</span>
             {tasks.length > 0 && (
@@ -188,15 +208,15 @@ export default function Home() {
             )}
           </div>
           {tasks.length === 0 && <div className="task-panel__empty">No tasks yet</div>}
-          {tasks.map((task, idx) => {
-            const taskNumber = tasks.length - idx;
+          {tasks.map((task) => {
+            // tasks 已按 createdAt 倒序（最新在前），无需 reverse
             const duration = task.endedAt && task.createdAt ? formatDuration(task.endedAt - task.createdAt) : "";
             const isFinal = task.status === "done" || task.status === "error" || task.status === "cancelled";
             return (
               <div key={task.id} className={`task-row task-row--${task.status}`}>
-                {/* Top: name + status badge + actions */}
+                {/* Top: task ID + name + status badge */}
                 <div className="task-row__top">
-                  <div className="task-row__id">#{String(taskNumber).padStart(2, "0")}</div>
+                  <div className="task-row__id">{task.id}</div>
                   <div className="task-row__name" title={task.name}>{task.name || "Untitled Slide"}</div>
                   <div className="task-row__badges">
                     {task.status === "generating" && (
@@ -333,6 +353,15 @@ export default function Home() {
               className="tarea"
               rows={5}
               onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleGenerate(); }}
+            />
+
+            {/* Task name (optional) */}
+            <input
+              type="text"
+              value={taskName}
+              onChange={e => setTaskName(e.target.value)}
+              placeholder="Task name (optional, auto-derived if empty)"
+              className="task-name-input"
             />
 
             {error && <div className="err-msg">{error}</div>}
@@ -620,8 +649,8 @@ export default function Home() {
 
         .task-row__step {
           font-size: 0.68rem; color: var(--text2); line-height: 1.4;
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
           display: flex; align-items: center; gap: 6px;
+          flex-wrap: wrap;
         }
 
         .task-row__step--active {
@@ -873,6 +902,25 @@ export default function Home() {
 
         .tarea::placeholder { color: var(--text3); }
         .tarea:focus {
+          border-color: var(--accent);
+          box-shadow: 0 0 0 3px var(--accent-dim);
+        }
+
+        .task-name-input {
+          width: 100%;
+          padding: 0.5rem 0.85rem;
+          background: var(--bg2);
+          border: 1.5px solid var(--border);
+          border-radius: var(--radius-sm);
+          color: var(--text);
+          font-size: 0.78rem;
+          font-family: var(--font-body);
+          outline: none;
+          transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        .task-name-input::placeholder { color: var(--text3); }
+        .task-name-input:focus {
           border-color: var(--accent);
           box-shadow: 0 0 0 3px var(--accent-dim);
         }

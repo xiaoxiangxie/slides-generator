@@ -4,13 +4,20 @@
 // ⚠️ 一旦此文件被更新，务必更新头部注释及所属文件夹的 FOLDER.md
 
 import path from "path";
-import { mkdir, writeFile, readFile } from "fs/promises";
+import { mkdir, writeFile, readFile, copyFile } from "fs/promises";
 import { existsSync } from "fs";
+import MD5 from "crypto-js/md5";
 import { callClaude } from "./claude-runner";
 import { buildFetchPrompt, buildPlanPrompt, buildSlidePrompt } from "./prompts";
 import { updateJob, getJob, getHtmlPath } from "@/lib/task-store";
 import type { StylePreset } from "@/lib/style-presets";
 
+/** 获取输入的内容指纹（用于缓存） */
+function getInputHash(input: string): string {
+  return MD5(input).toString();
+}
+
+/** 从用户输入中提取任务名称 */
 /** 从用户输入中提取任务名称 */
 function extractName(input: string, inputType: "url" | "text"): string {
   if (inputType === "url") {
@@ -44,14 +51,6 @@ function abortIfCancelled(id: string): void {
   }
 }
 
-export interface PipelineInput {
-  id: string;
-  input: string;
-  inputType: "url" | "text";
-  style: StylePreset;
-  aspectRatio: string;
-}
-
 function cleanClaudeOutput(output: string, type: "html" | "markdown"): string {
   const codeBlockRegex = new RegExp(`\`\`\`${type}\\s*\\n([\\s\\S]*?)\`\`\``);
   const match = output.match(codeBlockRegex);
@@ -64,28 +63,38 @@ function cleanClaudeOutput(output: string, type: "html" | "markdown"): string {
   return output.trim();
 }
 
-/**
- * 执行完整的幻灯片生成流水线
- *
- * URL 输入：  Step 1 → Step 2 → Step 3
- * 文本输入：  Step 2 → Step 3（跳过抓取）
- */
+export interface PipelineInput {
+  id: string;
+  input: string;
+  inputType: "url" | "text";
+  style: StylePreset;
+  aspectRatio: string;
+  taskName?: string;
+}
+
 export async function runPipeline(opts: PipelineInput): Promise<void> {
-  const { id, input, inputType, style, aspectRatio } = opts;
+  const { id, input, inputType, style, aspectRatio, taskName } = opts;
   const cwd = process.cwd();
 
-  // Set task name immediately
-  updateJob(id, { name: extractName(input, inputType) });
+  // Set task name: 前端传入优先，否则自动提取
+  updateJob(id, { name: taskName || extractName(input, inputType) });
 
   const totalSteps = inputType === "url" ? 4 : 3;
   let currentStep = 0;
 
   // 创建 pipeline 工作目录
   const pipelineDir = path.join(cwd, ".claude-pipeline", id);
+  const cacheBaseDir = path.join(cwd, ".claude-pipeline", "cache");
   await mkdir(pipelineDir, { recursive: true });
+  await mkdir(cacheBaseDir, { recursive: true });
 
   const contentPath = path.join(pipelineDir, "01-content.md");
   const outlinePath = path.join(pipelineDir, "02-outline.md");
+  
+  // 缓存路径定义
+  const inputHash = getInputHash(input);
+  const cachePath = path.join(cacheBaseDir, `${inputHash}.md`);
+
   const dateStr = new Date().toISOString().slice(0, 10);
   const htmlPath = getHtmlPath(id, dateStr);
   const fullOutputPath = path.join(cwd, "public", "output", dateStr, id + ".html");
@@ -93,43 +102,59 @@ export async function runPipeline(opts: PipelineInput): Promise<void> {
 
   try {
     // ============================================================
-    // Step 1: 内容抓取（仅 URL 输入）
+    // Step 1: 内容获取与缓存检测
     // ============================================================
+    let contentCached = false;
     if (inputType === "url") {
       currentStep++;
-      updateJob(id, {
-        status: "generating",
-        skill: "agent-browser",
-        step: `[${currentStep}/${totalSteps}] 正在抓取页面内容...`,
-        progress: 10,
-      });
 
-      const fetchPrompt = buildFetchPrompt(input, contentPath);
-      const fetchResult = await callClaude(fetchPrompt, {
-        cwd,
-        timeout: 180_000, // 3 分钟
-        onStdout: (chunk) => {
-          process.stdout.write(chunk);
-        },
-      });
+      // 检查缓存
+      if (existsSync(cachePath)) {
+        updateJob(id, {
+          status: "generating",
+          skill: "system",
+          step: `[${currentStep}/${totalSteps}] 命中缓存，正在加载内容...`,
+          progress: 25,
+        });
+        await copyFile(cachePath, contentPath);
+        contentCached = true;
+      } else {
+        updateJob(id, {
+          status: "generating",
+          skill: "agent-browser",
+          step: `[${currentStep}/${totalSteps}] 正在抓取页面内容...`,
+          progress: 10,
+        });
 
-      if (!fetchResult.success) {
-        throw new Error(
-          "Step 1 (内容抓取) 失败: " +
-            (fetchResult.stderr.slice(-300) || "执行错误")
-        );
+        const fetchPrompt = buildFetchPrompt(input, contentPath);
+        const fetchResult = await callClaude(fetchPrompt, {
+          cwd,
+          timeout: 180_000, // 3 分钟
+          onStdout: (chunk) => {
+            process.stdout.write(chunk);
+          },
+        });
+
+        if (!fetchResult.success) {
+          throw new Error(
+            "Step 1 (内容抓取) 失败: " +
+              (fetchResult.stderr.slice(-300) || "执行错误")
+          );
+        }
+
+        const cleanMD = cleanClaudeOutput(fetchResult.stdout, "markdown");
+        if (cleanMD.length < 50) {
+          throw new Error("Step 1 抓取的内容太短（< 50 字），请检查 URL 是否正确。Claude:" + fetchResult.stdout.slice(0, 100));
+        }
+        await writeFile(contentPath, cleanMD, "utf-8");
+        // 写入全局缓存
+        await writeFile(cachePath, cleanMD, "utf-8");
+
+        updateJob(id, {
+          step: `[${currentStep}/${totalSteps}] 内容抓取完成`,
+          progress: 25,
+        });
       }
-
-      const cleanMD = cleanClaudeOutput(fetchResult.stdout, "markdown");
-      if (cleanMD.length < 50) {
-        throw new Error("Step 1 抓取的内容太短（< 50 字），请检查 URL 是否正确。Claude:" + fetchResult.stdout.slice(0, 100));
-      }
-      await writeFile(contentPath, cleanMD, "utf-8");
-
-      updateJob(id, {
-        step: `[${currentStep}/${totalSteps}] 内容抓取完成`,
-        progress: 25,
-      });
     } else {
       // 文本输入：直接写入 content 文件
       await writeFile(contentPath, input, "utf-8");

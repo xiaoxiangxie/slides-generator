@@ -1,4 +1,4 @@
-// input:  POST body { input, inputType, styleId, aspectRatio }
+// input:  POST body { input, inputType, styleId, aspectRatio, taskName? }
 // output: JSON { id, status: "generating" }
 // pos:    API 入口，创建任务并启动 Pipeline
 // ⚠️ 一旦此文件被更新，务必更新头部注释及所属文件夹的 FOLDER.md
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const { input, inputType, styleId, aspectRatio } = await req.json();
+    const { input, inputType, styleId, aspectRatio, taskName } = await req.json();
 
     if (!input?.trim()) {
       return NextResponse.json({ error: "content cannot be empty" }, { status: 400 });
@@ -25,8 +25,9 @@ export async function POST(req: NextRequest) {
     }
 
     const id = randomUUID().split("-")[0];
-    createJob(id);
-    updateJob(id, { status: "generating", step: "Starting pipeline...", progress: 5 });
+    // taskName 由前端传入，不填则由 Pipeline 内部自动提取
+    createJob(id, taskName || "");
+    updateJob(id, { status: "generating", step: "Starting pipeline...", progress: 5, name: taskName || "" });
 
     // 异步启动 Pipeline（不阻塞响应）
     runPipeline({
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
       inputType: inputType || "url",
       style,
       aspectRatio: aspectRatio || "16:9",
+      taskName: taskName || "",
     }).catch((e) => {
       console.error("[Pipeline error]", e);
       updateJob(id, { status: "error", step: "Pipeline failed", error: e.message });
