@@ -28,17 +28,19 @@ export async function GET(req: NextRequest) {
         }
 
         const msg = {
-          type: job.status === "done" ? "done" : job.status === "error" ? "error" : "progress",
+          type: job.status === "done" ? "done" : job.status === "error" ? "error" : job.status === "cancelled" ? "cancelled" : "progress",
           skill: job.skill,
           step: job.step,
           progress: job.progress,
           htmlPath: job.htmlPath,
           message: job.error,
+          name: job.name,
+          endedAt: job.endedAt,
         };
 
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(msg)}\n\n`));
 
-        if (job.status === "done" || job.status === "error") {
+        if (job.status === "done" || job.status === "error" || job.status === "cancelled") {
           controller.close();
           clearInterval(intervalId);
         }

@@ -25,9 +25,11 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │  API Layer (Next.js Route Handlers)                             │
 │                                                                 │
-│  route.ts    ── 接收请求，创建任务，启动流水线                    │
-│  sse/        ── SSE 推送任务进度                                 │
-│  result/     ── 轮询任务结果                                     │
+│  POST /api/generate         ── 创建任务，启动流水线              │
+│  GET  /api/generate/sse     ── SSE 推送任务进度                  │
+│  GET  /api/tasks            ── SQLite 任务列表（首页同步用）      │
+│  DELETE /api/tasks/[id]     ── 删除任务                          │
+│  POST /api/tasks/[id]/cancel ── 取消进行中任务                   │
 │                                                                 │
 └────────┬────────────────────────────────────────────────────────┘
          v
@@ -36,15 +38,19 @@
 │                                                                 │
 │  按顺序调用以下 Claude Code CLI 步骤：                            │
 │                                                                 │
-│  Step 1: 内容抓取                                                │
+│  Step 1: 内容抓取（仅 URL 输入）                                  │
 │    Skill: agent-browser / baoyu-url-to-markdown                 │
 │    输入: URL                                                     │
 │    输出: markdown 文件                                            │
 │                                                                 │
+│  Step 1.5: 智能篇幅分析                                          │
+│    根据内容长度自动判断：简洁 / 适中 / 详细                        │
+│    输出: 目标页数（4-20页）                                       │
+│                                                                 │
 │  Step 2: 内容规划                                                │
 │    Skill: ljg-writes                                             │
 │    输入: markdown 内容                                            │
-│    输出: 结构化大纲（JSON/Markdown）                              │
+│    输出: 结构化大纲（Markdown）                                   │
 │                                                                 │
 │  Step 3: 幻灯片生成                                              │
 │    Skill: frontend-slides                                        │
@@ -60,11 +66,20 @@
          |
          v
 ┌─────────────────────────────────────────────────────────────────┐
-│  状态管理                                                        │
+│  状态管理（SQLite 持久化）                                         │
 │                                                                 │
-│  generation-store.ts ── 服务端任务状态（内存 Map）                │
-│  task-store.ts       ── 客户端任务记录（localStorage）            │
-│  style-presets.ts    ── 12 种风格预设                             │
+│  lib/db.ts            ── SQLite 持久化层（better-sqlite3）        │
+│                        表: jobs { id, status, skill, step,       │
+│                        progress, htmlPath, error, name,          │
+│                        endedAt, createdAt }                       │
+│                        进程重启不丢数据                           │
+│                                                                 │
+│  lib/task-store.ts    ── db.ts 的 re-export，服务端专用           │
+│                                                                 │
+│  lib/generation-store.ts ── localStorage 客户端缓存              │
+│                        仅客户端页面使用，API 层不依赖             │
+│                                                                 │
+│  lib/style-presets.ts ── 12 种风格预设                           │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -77,10 +92,13 @@ URL/文本
   ├── (URL) ──► Step 1: agent-browser 抓取 ──► raw markdown
   │              Claude Code CLI + agent-browser skill
   │
-  └── (文本) ──► 直接进入 Step 2
+  └── (文本) ──► 直接进入 Step 1.5
                     │
                     v
-              Step 2: 内容规划 ──► outline.json
+              Step 1.5: 智能篇幅分析 ──► 目标页数
+                    │
+                    v
+              Step 2: 内容规划 ──► outline.md
                 Claude Code CLI + ljg-writes skill
                     │
                     v
@@ -99,7 +117,8 @@ URL/文本
 | 框架 | Next.js 15 (App Router) | 全栈一体，API Route 方便 |
 | AI 执行 | Claude Code CLI | 通过 `.claude/skills/` 自带 Skill 上下文 |
 | 实时通信 | SSE (Server-Sent Events) | 轻量，原生浏览器支持 |
-| 状态 | 内存 Map + localStorage | 原型阶段够用，后续换 DB |
+| 持久化 | better-sqlite3 (SQLite) | 进程重启不丢数据，零配置 |
+| 客户端缓存 | localStorage | 页面刷新后快速恢复任务列表 |
 | 中间产物 | 文件系统 | 每步输出写文件，下步读取 |
 
 ## 更新日志
@@ -107,3 +126,4 @@ URL/文本
 | 日期 | 变更 |
 |------|------|
 | 2026-04-13 | 初始架构文档，规划多步 Pipeline 架构 |
+| 2026-04-14 | 状态层迁移至 SQLite（better-sqlite3），支持任务取消/删除/重命名/耗时统计 |

@@ -7,6 +7,7 @@ export {
   updateJob,
   listJobs,
   deleteJob,
+  cancelJob,
   getHtmlPath,
   getTasks,
   addTask,

@@ -3,7 +3,7 @@
  * 替代 generation-store (localStorage) + task-store (内存 Map)
  *
  * 表结构:
- *   jobs: { id, status, skill, step, progress, htmlPath, error, createdAt }
+ *   jobs: { id, status, skill, step, progress, htmlPath, error, name, endedAt, createdAt }
  */
 
 import Database from "better-sqlite3";
@@ -31,6 +31,8 @@ function getDb(): Database.Database {
       progress    INTEGER NOT NULL DEFAULT 0,
       htmlPath    TEXT NOT NULL DEFAULT '',
       error       TEXT NOT NULL DEFAULT '',
+      name        TEXT NOT NULL DEFAULT '',
+      endedAt     INTEGER NOT NULL DEFAULT 0,
       createdAt   INTEGER NOT NULL DEFAULT (unixepoch())
     )
   `);
@@ -42,21 +44,23 @@ function getDb(): Database.Database {
 
 export interface JobRecord {
   id: string;
-  status: "pending" | "generating" | "done" | "error";
+  status: "pending" | "generating" | "done" | "error" | "cancelled";
   skill: string;
   step: string;
   progress: number;
   htmlPath: string;
   error: string;
+  name: string;
+  endedAt: number;
   createdAt: number;
 }
 
-export function createJob(id: string): void {
+export function createJob(id: string, name: string = ""): void {
   const db = getDb();
   db.prepare(`
-    INSERT OR IGNORE INTO jobs (id, status, skill, step, progress, htmlPath, error, createdAt)
-    VALUES (?, 'pending', '', '', 0, '', '', unixepoch())
-  `).run(id);
+    INSERT OR IGNORE INTO jobs (id, status, skill, step, progress, htmlPath, error, name, endedAt, createdAt)
+    VALUES (?, 'pending', '', '', 0, '', '', ?, 0, unixepoch())
+  `).run(id, name);
 }
 
 export function getJob(id: string): JobRecord | undefined {
@@ -76,6 +80,8 @@ export function updateJob(id: string, updates: Partial<JobRecord>): void {
   if (updates.progress !== undefined) { sets.push("progress = ?"); values.push(updates.progress); }
   if (updates.htmlPath !== undefined) { sets.push("htmlPath = ?"); values.push(updates.htmlPath); }
   if (updates.error !== undefined) { sets.push("error = ?"); values.push(updates.error); }
+  if (updates.name !== undefined) { sets.push("name = ?"); values.push(updates.name); }
+  if (updates.endedAt !== undefined) { sets.push("endedAt = ?"); values.push(updates.endedAt); }
 
   if (sets.length === 0) return;
   values.push(id);
@@ -93,6 +99,11 @@ export function deleteJob(id: string): void {
   db.prepare("DELETE FROM jobs WHERE id = ?").run(id);
 }
 
+export function cancelJob(id: string): void {
+  const db = getDb();
+  db.prepare("UPDATE jobs SET status = 'cancelled', endedAt = unixepoch() WHERE id = ?").run(id);
+}
+
 export function getHtmlPath(id: string, dateStr: string): string {
   return `/output/${dateStr}/${id}.html`;
 }
@@ -101,12 +112,14 @@ export function getHtmlPath(id: string, dateStr: string): string {
 
 export interface TaskRecord {
   id: string;
-  status: "pending" | "generating" | "done" | "error";
+  status: "pending" | "generating" | "done" | "error" | "cancelled";
   skill: string;
   step: string;
   progress: number;
   htmlPath: string;
   error: string;
+  name: string;
+  endedAt: number;
   createdAt: number;
 }
 
@@ -123,9 +136,9 @@ export function getTasks(): TaskRecord[] {
 export function addTask(task: TaskRecord): void {
   const db = getDb();
   db.prepare(`
-    INSERT OR REPLACE INTO jobs (id, status, skill, step, progress, htmlPath, error, createdAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(task.id, task.status, task.skill, task.step, task.progress, task.htmlPath, task.error ?? "", task.createdAt);
+    INSERT OR REPLACE INTO jobs (id, status, skill, step, progress, htmlPath, error, name, endedAt, createdAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(task.id, task.status, task.skill, task.step, task.progress, task.htmlPath, task.error ?? "", task.name, task.endedAt ?? 0, task.createdAt);
 }
 
 /** Update a task by id */

@@ -4,6 +4,43 @@ import { useState, useEffect } from "react";
 import { STYLE_PRESETS, ASPECT_RATIOS } from "@/lib/style-presets";
 import { getTasks, addTask, updateTask, type TaskRecord } from "@/lib/generation-store";
 
+/** 从用户输入中提取任务名称 */
+function extractTaskName(input: string, inputType: "url" | "text"): string {
+  if (inputType === "url") {
+    try {
+      const url = new URL(input);
+      const domain = url.hostname.replace(/^www\./, "");
+      const segments = url.pathname.replace(/^\//, "").split("/").filter(Boolean);
+      if (segments.length > 0) return `${domain}/${segments.slice(-2).join("/")}`;
+      return domain;
+    } catch {
+      return input.slice(0, 50);
+    }
+  }
+  const first = input.split("\n").find((l) => l.trim().length > 0) || input;
+  return first.trim().slice(0, 50);
+}
+
+function formatRelativeTime(timestamp: number): string {
+  if (!timestamp) return "";
+  const diff = Math.floor(Date.now() / 1000) - timestamp;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+function formatDuration(seconds: number): string {
+  if (!seconds) return "";
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  if (m < 60) return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  return rem > 0 ? `${h}h ${rem}m` : `${h}h`;
+}
+
 export default function Home() {
   const [input, setInput] = useState("");
   const [inputType, setInputType] = useState<"url" | "text">("url");
@@ -45,14 +82,18 @@ export default function Home() {
       es.onmessage = (e) => {
         const data = JSON.parse(e.data);
         if (data.type === "progress" || data.type === "running") {
-          updateTask(task.id, { status: "generating", skill: data.skill || "", step: data.step || "", progress: data.progress || 50 });
+          updateTask(task.id, { status: "generating", skill: data.skill || "", step: data.step || "", progress: data.progress || 50, name: data.name || task.name });
           setTasks([...getTasks()]);
         } else if (data.type === "done") {
-          updateTask(task.id, { status: "done", skill: "", step: "Done", progress: 100, htmlPath: data.htmlPath || "" });
+          updateTask(task.id, { status: "done", skill: "", step: "Done", progress: 100, htmlPath: data.htmlPath || "", endedAt: data.endedAt || Math.floor(Date.now() / 1000) });
           setTasks([...getTasks()]);
           es.close();
         } else if (data.type === "error") {
-          updateTask(task.id, { status: "error", skill: "", step: "Failed", error: data.message });
+          updateTask(task.id, { status: "error", skill: "", step: "Failed", error: data.message, endedAt: data.endedAt || Math.floor(Date.now() / 1000) });
+          setTasks([...getTasks()]);
+          es.close();
+        } else if (data.type === "cancelled") {
+          updateTask(task.id, { status: "cancelled", step: "已取消", endedAt: data.endedAt || Math.floor(Date.now() / 1000) });
           setTasks([...getTasks()]);
           es.close();
         }
@@ -75,7 +116,8 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "生成失败");
-      const task: TaskRecord = { id: data.id, status: "generating", skill: "frontend-slides", step: "Starting...", progress: 10, htmlPath: "", error: "", createdAt: Date.now() };
+      const name = extractTaskName(input.trim(), inputType);
+      const task: TaskRecord = { id: data.id, status: "generating", skill: "frontend-slides", step: "Starting...", progress: 10, htmlPath: "", error: "", name, endedAt: 0, createdAt: Math.floor(Date.now() / 1000) };
       addTask(task);
       setTasks([...getTasks()]);
       setShowTaskList(true);
@@ -84,6 +126,20 @@ export default function Home() {
       setError(e.message);
       setLoading(false);
     }
+  }
+
+  async function cancelTask(id: string) {
+    try {
+      await fetch(`/api/tasks/${id}/cancel`, { method: "POST" });
+      setTasks((prev) => prev.map((t) => t.id === id ? { ...t, status: "cancelled" as const, step: "已取消", endedAt: Math.floor(Date.now() / 1000) } : t));
+    } catch {/* silently ignore */}
+  }
+
+  async function deleteTask(id: string) {
+    try {
+      await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+      setTasks((prev) => prev.filter((t) => t.id !== id));
+    } catch {/* silently ignore */}
   }
 
   const selectedPreset = STYLE_PRESETS.find(s => s.id === selectedStyle)!;
@@ -126,18 +182,79 @@ export default function Home() {
             )}
           </div>
           {tasks.length === 0 && <div className="task-panel__empty">No tasks yet</div>}
-          {[...tasks].reverse().map(task => (
-            <div key={task.id} className={`task-row task-row--${task.status}`}>
-              <div className="task-row__top">
-                <span className="task-row__id">#{task.id}</span>
-                {task.status === "generating" && <span className="task-row__pct">{task.progress}%</span>}
-                {task.status === "done" && <a href={"/preview/" + task.id} target="_blank" rel="noopener" className="task-row__link">Open ↗</a>}
-                {task.status === "error" && <span className="task-row__err">Error</span>}
+          {[...tasks].reverse().map(task => {
+            const duration = task.endedAt && task.createdAt ? formatDuration(task.endedAt - task.createdAt) : "";
+            const isFinal = task.status === "done" || task.status === "error" || task.status === "cancelled";
+            return (
+              <div key={task.id} className={`task-row task-row--${task.status}`}>
+                {/* Top: name + status badge + actions */}
+                <div className="task-row__top">
+                  <div className="task-row__name" title={task.name}>{task.name || `#${task.id}`}</div>
+                  <div className="task-row__badges">
+                    {task.status === "generating" && (
+                      <span className="badge badge--running">
+                        <span className="badge__dot" />
+                        {task.progress}%
+                      </span>
+                    )}
+                    {task.status === "done" && (
+                      <a href={"/preview/" + task.id} target="_blank" rel="noopener" className="badge badge--done">Done ↗</a>
+                    )}
+                    {task.status === "error" && <span className="badge badge--error">Error</span>}
+                    {task.status === "cancelled" && <span className="badge badge--cancelled">Cancelled</span>}
+                  </div>
+                </div>
+
+                {/* Progress bar for generating */}
+                {task.status === "generating" && (
+                  <div className="task-row__bar"><div style={{ width: `${task.progress}%` }} /></div>
+                )}
+
+                {/* Step label */}
+                <div className="task-row__step">{task.step}</div>
+
+                {/* Times row */}
+                <div className="task-row__times">
+                  <span className="task-row__time task-row__time--created">
+                    <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                      <circle cx="6" cy="6" r="4.5" /><path d="M6 3.5v2.75l1.75 1.75" />
+                    </svg>
+                    {formatRelativeTime(task.createdAt)}
+                  </span>
+                  {isFinal && task.endedAt > 0 && (
+                    <>
+                      <span className="task-row__sep">·</span>
+                      <span className="task-row__time">
+                        <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                          <path d="M1 6.5h10M6.5 2l4 4.5-4 4.5" />
+                        </svg>
+                        {duration}
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                {/* Error message for failed tasks */}
+                {task.status === "error" && task.error && (
+                  <div className="task-row__error">{task.error}</div>
+                )}
+
+                {/* Action buttons */}
+                <div className="task-row__actions">
+                  {task.status === "generating" && (
+                    <button className="task-action task-action--cancel" onClick={() => cancelTask(task.id)}>
+                      Cancel
+                    </button>
+                  )}
+                  {isFinal && (
+                    <button className="task-action task-action--delete" onClick={() => deleteTask(task.id)}>
+                      Delete
+                    </button>
+                  )}
+                </div>
               </div>
-              {task.status === "generating" && <div className="task-row__bar"><div style={{ width: `${task.progress}%` }} /></div>}
-              <div className="task-row__step">{task.step}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -414,29 +531,53 @@ export default function Home() {
         }
 
         .task-row {
-          padding: 0.6rem 0.85rem;
+          padding: 0.55rem 0.85rem;
           border-bottom: 1px solid var(--border);
+          display: flex; flex-direction: column; gap: 0.25rem;
         }
 
         .task-row:last-child { border-bottom: none; }
         .task-row--generating { background: rgba(184,132,74,0.04); }
         .task-row--done { background: rgba(74,138,90,0.03); }
         .task-row--error { background: rgba(192,69,58,0.04); }
+        .task-row--cancelled { background: rgba(107,101,96,0.04); }
 
         .task-row__top {
-          display: flex; justify-content: space-between; align-items: center;
-          margin-bottom: 0.3rem;
+          display: flex; justify-content: space-between; align-items: flex-start;
+          gap: 0.4rem;
         }
 
-        .task-row__id { font-size: 0.65rem; color: var(--text3); font-family: var(--font-mono); }
-        .task-row__pct { font-size: 0.65rem; color: var(--accent); font-weight: 600; font-family: var(--font-mono); }
-        .task-row__link { font-size: 0.65rem; color: var(--success); text-decoration: none; font-weight: 600; }
-        .task-row__err { font-size: 0.65rem; color: var(--danger); font-weight: 600; }
+        .task-row__name {
+          font-size: 0.75rem; font-weight: 600; color: var(--text);
+          flex: 1; min-width: 0;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+          line-height: 1.3;
+        }
+
+        .task-row__badges { display: flex; gap: 0.3rem; flex-shrink: 0; align-items: center; }
+
+        .badge {
+          display: inline-flex; align-items: center; gap: 0.2rem;
+          padding: 0.15rem 0.4rem;
+          border-radius: 100px;
+          font-size: 0.6rem; font-weight: 600;
+          text-decoration: none;
+          white-space: nowrap;
+        }
+
+        .badge--running { background: rgba(184,132,74,0.12); color: var(--accent); }
+        .badge__dot {
+          width: 5px; height: 5px; border-radius: 50%;
+          background: var(--accent);
+          animation: pulse 1.5s ease-in-out infinite;
+        }
+        .badge--done { background: rgba(74,138,90,0.12); color: var(--success); }
+        .badge--error { background: rgba(192,69,58,0.12); color: var(--danger); }
+        .badge--cancelled { background: rgba(107,101,96,0.10); color: var(--text3); }
 
         .task-row__bar {
           height: 2px; background: var(--border);
           border-radius: 1px; overflow: hidden;
-          margin-bottom: 0.3rem;
         }
 
         .task-row__bar div {
@@ -444,7 +585,58 @@ export default function Home() {
           transition: width 0.4s;
         }
 
-        .task-row__step { font-size: 0.75rem; color: var(--text2); }
+        .task-row__step {
+          font-size: 0.7rem; color: var(--text2); line-height: 1.3;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        .task-row__times {
+          display: flex; align-items: center; gap: 0.3rem;
+        }
+
+        .task-row__time {
+          display: inline-flex; align-items: center; gap: 0.2rem;
+          font-size: 0.6rem; color: var(--text3);
+        }
+
+        .task-row__sep { font-size: 0.6rem; color: var(--text3); }
+
+        .task-row__error {
+          font-size: 0.65rem; color: var(--danger);
+          background: rgba(192,69,58,0.06);
+          border: 1px solid rgba(192,69,58,0.12);
+          border-radius: var(--radius-sm);
+          padding: 0.3rem 0.5rem;
+          line-height: 1.4;
+          margin-top: 0.1rem;
+          max-height: 4.5em; overflow-y: auto;
+          word-break: break-all;
+        }
+
+        .task-row__actions {
+          display: flex; gap: 0.3rem; margin-top: 0.1rem;
+        }
+
+        .task-action {
+          padding: 0.2rem 0.55rem;
+          border-radius: 100px;
+          font-size: 0.62rem; font-weight: 500;
+          font-family: var(--font-body);
+          cursor: pointer; border: 1px solid;
+          transition: all 0.15s;
+        }
+
+        .task-action--cancel {
+          background: rgba(184,132,74,0.06); border-color: rgba(184,132,74,0.18);
+          color: var(--accent);
+        }
+        .task-action--cancel:hover { background: rgba(184,132,74,0.12); }
+
+        .task-action--delete {
+          background: rgba(192,69,58,0.06); border-color: rgba(192,69,58,0.15);
+          color: var(--danger);
+        }
+        .task-action--delete:hover { background: rgba(192,69,58,0.12); }
 
         /* ── Body ── */
         .body {

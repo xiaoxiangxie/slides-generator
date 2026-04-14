@@ -6,12 +6,14 @@
 
 export interface TaskRecord {
   id: string;
-  status: "generating" | "done" | "error";
+  status: "pending" | "generating" | "done" | "error" | "cancelled";
   skill: string;
   step: string;
   progress: number;
   htmlPath: string;
-  error?: string;
+  error: string;
+  name: string;
+  endedAt: number;
   createdAt: number;
 }
 
