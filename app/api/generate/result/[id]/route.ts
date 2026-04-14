@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getJob } from "@/lib/generation-store";
+import { getJob } from "@/lib/task-store";
 
 export async function GET(
   _req: NextRequest,

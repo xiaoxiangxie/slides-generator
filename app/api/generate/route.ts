@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { createJob, updateJob } from "@/lib/generation-store";
+import { createJob, updateJob } from "@/lib/task-store";
 import { STYLE_PRESETS } from "@/lib/style-presets";
 import { runPipeline } from "@/lib/pipeline";
 

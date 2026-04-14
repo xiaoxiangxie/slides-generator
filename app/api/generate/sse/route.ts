@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getJob } from "@/lib/generation-store";
+import { getJob } from "@/lib/task-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

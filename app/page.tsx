@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { STYLE_PRESETS, ASPECT_RATIOS } from "@/lib/style-presets";
-import { getTasks, addTask, updateTask, type TaskRecord } from "@/lib/task-store";
+import { getTasks, addTask, updateTask, type TaskRecord } from "@/lib/generation-store";
 
 export default function Home() {
   const [input, setInput] = useState("");
@@ -14,8 +14,26 @@ export default function Home() {
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [showTaskList, setShowTaskList] = useState(false);
 
+  // Mount 时从 SQLite 同步任务列表（SQLite 是唯一数据源）
   useEffect(() => {
-    setTasks(getTasks());
+    async function syncTasks() {
+      try {
+        const res = await fetch("/api/tasks");
+        if (res.ok) {
+          const serverTasks: TaskRecord[] = await res.json();
+          // 用 SQLite 数据作为唯一数据源，写入 localStorage 保持一致
+          const trimmed = serverTasks.slice(-30);
+          localStorage.setItem("slides-tasks", JSON.stringify(trimmed));
+          setTasks(trimmed);
+        } else {
+          // API 失败时降级到本地缓存
+          setTasks(getTasks());
+        }
+      } catch {
+        setTasks(getTasks());
+      }
+    }
+    syncTasks();
   }, []);
 
   useEffect(() => {
@@ -57,7 +75,7 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "生成失败");
-      const task: TaskRecord = { id: data.id, status: "generating", skill: "frontend-slides", step: "Starting...", progress: 10, htmlPath: "", createdAt: Date.now() };
+      const task: TaskRecord = { id: data.id, status: "generating", skill: "frontend-slides", step: "Starting...", progress: 10, htmlPath: "", error: "", createdAt: Date.now() };
       addTask(task);
       setTasks([...getTasks()]);
       setShowTaskList(true);

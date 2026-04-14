@@ -30,3 +30,6 @@ npm-debug.log*
 .claude/
 .claude-pipeline/
 lib/pipeline/
+
+# SQLite database (auto-created at runtime)
+.data/
