@@ -1,0 +1,116 @@
+name: slides-generator
+description: URL或文本 → HTML幻灯片 → MP4视频
+agents_dir: .agents
+llm:
+  provider: claude-code
+  model: sonnet
+  timeout: 300000
+  retry: 3
+concurrency: 1
+
+inputs:
+  - name: source
+    description: URL 或文本内容
+  - name: input_type
+    description: "url" 或 "text"
+  - name: style_id
+    description: 风格预设 ID
+  - name: aspect_ratio
+    description: "16:9" 或 "9:16"
+  - name: video_style
+    description: "normal" | "fast" | "slow"
+  - name: output_dir
+    description: 输出目录路径
+  - name: width
+    description: 视频宽度
+  - name: height
+    description: 视频高度
+
+steps:
+
+  - id: extract_content
+    role: agent-browser
+    name: 抓取页面内容
+    emoji: "🌐"
+    task: |
+      请从以下 URL 提取页面主要内容并转换为 Markdown：
+
+      URL: {{source}}
+
+      如果需要，可以使用备选的 baoyu-url-to-markdown 工具。
+    output: raw_content
+    condition: "\"{{input_type}}\" == 'url'"
+
+  - id: use_text_directly
+    role: agent-browser
+    name: 使用文本内容
+    emoji: "📝"
+    task: |
+      用户直接输入了文本内容，将其作为原始内容：
+
+      {{source}}
+    output: raw_content
+    condition: "\"{{input_type}}\" == 'text'"
+
+  - id: analyze_length
+    role: ljg-writes
+    name: 分析篇幅
+    emoji: "📏"
+    task: |
+      请分析以下内容的长度，并输出一个简短的 JSON 对象：
+
+      内容长度: {{raw_content}}
+
+      分析规则:
+      - 如果内容 < 800 字，输出 {"range_type": "简洁", "slide_count": 3}
+      - 如果内容 < 3000 字，输出 {"range_type": "适中", "slide_count": 8}
+      - 如果内容 >= 3000 字，输出 {"range_type": "详细", "slide_count": 15}
+
+      直接输出 JSON 代码块，不要有多余内容。
+    output: analysis_result
+    depends_on: [extract_content, use_text_directly]
+
+  - id: plan_slides
+    role: ljg-writes
+    name: 规划幻灯片
+    emoji: "✍️"
+    task: |
+      请将以下内容规划成幻灯片大纲：
+
+      内容:
+      {{raw_content}}
+
+      篇幅类型: {{analysis_result}}
+
+      请根据规划结果，直接输出 markdown 大纲代码块。
+    output: slide_outline
+    depends_on: [analyze_length]
+
+  - id: generate_slides
+    role: frontend-slides
+    name: 生成HTML
+    emoji: "🎨"
+    task: |
+      请根据以下大纲生成 HTML 幻灯片：
+
+      {{slide_outline}}
+
+      风格: {{style_id}}
+      比例: {{aspect_ratio}}
+    output: html_path
+    depends_on: [plan_slides]
+
+  - id: render_video
+    role: remotion
+    name: 渲染视频
+    emoji: "🎬"
+    task: |
+      请根据以下信息渲染视频：
+
+      HTML路径: {{html_path}}
+      大纲: {{slide_outline}}
+      输出目录: {{output_dir}}
+      尺寸: {{width}}x{{height}}
+      风格: {{video_style}}
+    output: video_result
+    depends_on: [generate_slides]
