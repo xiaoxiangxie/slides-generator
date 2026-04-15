@@ -1,7 +1,7 @@
+import { executeDAG, buildDAG, createConnector } from 'agency-orchestrator';
 import { readFileSync } from 'fs';
-import { join } from 'path';
-import { run } from 'agency-orchestrator';
-import type { WorkflowResult, DAGNode } from 'agency-orchestrator';
+import yaml from 'js-yaml';
+import type { WorkflowDefinition, DAGNode } from 'agency-orchestrator';
 
 export interface WorkflowInputs {
   source: string;
@@ -23,24 +23,23 @@ export async function runSlidesWorkflow(
     onBatchStart?: (stepIds: string[]) => void;
     onBatchComplete?: (stepIds: string[]) => void;
   }
-): Promise<WorkflowResult> {
+) {
   const yamlContent = readFileSync(yamlPath, 'utf-8');
+  const workflow = yaml.load(yamlContent) as WorkflowDefinition;
+  const dag = buildDAG(workflow);
 
-  const result = await run(yamlContent, {
-    source: inputs.source,
-    input_type: inputs.input_type,
-    style_id: inputs.style_id,
-    aspect_ratio: inputs.aspect_ratio,
-    video_style: inputs.video_style,
-    output_dir: inputs.output_dir,
-    width: String(inputs.width),
-    height: String(inputs.height),
-  }, {
-    onStepStart: (node: DAGNode) => callbacks?.onStepStart?.(node.step.id),
-    onStepComplete: (node: DAGNode) => callbacks?.onStepComplete?.(node.step.id, node.result || ''),
-    onBatchStart: (nodes: DAGNode[]) => callbacks?.onBatchStart?.(nodes.map(n => n.step.id)),
-    onBatchComplete: (nodes: DAGNode[]) => callbacks?.onBatchComplete?.(nodes.map(n => n.step.id)),
+  const connector = createConnector(workflow.llm);
+  const inputsMap = new Map(Object.entries(inputs).map(([k, v]) => [k, String(v)]));
+
+  await executeDAG(dag, {
+    connector,
+    agentsDir: workflow.agents_dir,
+    llmConfig: workflow.llm,
+    concurrency: workflow.concurrency ?? 1,
+    inputs: inputsMap,
+    onStepStart: callbacks?.onStepStart ? (node: DAGNode) => callbacks.onStepStart!(node.step.id) : undefined,
+    onStepComplete: callbacks?.onStepComplete ? (node: DAGNode) => callbacks.onStepComplete!(node.step.id, node.result || '') : undefined,
+    onBatchStart: callbacks?.onBatchStart ? (nodes: DAGNode[]) => callbacks.onBatchStart!(nodes.map((n: DAGNode) => n.step.id)) : undefined,
+    onBatchComplete: callbacks?.onBatchComplete ? (nodes: DAGNode[]) => callbacks.onBatchComplete!(nodes.map((n: DAGNode) => n.step.id)) : undefined,
   });
-
-  return result;
 }
