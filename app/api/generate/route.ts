@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { createJob, updateJob } from "@/lib/task-store";
 import { STYLE_PRESETS } from "@/lib/style-presets";
-import { runPipeline } from "@/lib/pipeline";
+import { runPipeline } from "@/lib/pipeline/orchestrator";
 
 export const dynamic = "force-dynamic";
 
