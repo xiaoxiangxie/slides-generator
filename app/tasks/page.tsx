@@ -390,9 +390,12 @@ export default function TasksPage() {
                         const data = await res.json();
                         if (data.url) {
                           window.open(data.url, "_blank");
+                        } else {
+                          alert("PPTX 导出失败");
                         }
                       } catch (err) {
                         console.error(err);
+                        alert("PPTX 导出失败");
                       }
                     }}
                   >

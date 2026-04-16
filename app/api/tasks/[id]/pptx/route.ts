@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getJob } from "@/lib/db";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import path from "path";
+import PptxGenJS from "pptxgenjs";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,8 @@ function parseOutline(content: string): SlideData[] {
   try {
     const cleaned = content.replace(/```(?:json|markdown)?\n?/g, "").trim();
     return JSON.parse(cleaned);
-  } catch {
+  } catch (e) {
+    console.error("Failed to parse outline JSON:", e);
     return [];
   }
 }
@@ -51,15 +53,19 @@ export async function GET(
 
   const slides = parseOutline(outlineContent);
 
-  // Dynamically import pptxgenjs
-  const PptxGenJS = (await import("pptxgenjs")).default;
+  if (slides.length === 0) {
+    return NextResponse.json({ error: "无法解析大纲文件，请检查格式" }, { status: 400 });
+  }
 
   const pptx = new PptxGenJS();
   pptx.title = job.name || "Slides";
   pptx.author = "Slides Generator";
 
-  // Determine layout based on aspect ratio (default to 16:9 wide)
-  const layout = "LAYOUT_16x9";
+  // Handle aspect ratio for vertical slides (9:16)
+  if (job.aspectRatio === "9:16") {
+    pptx.defineLayout({ name: "VERTICAL", width: 9, height: 16 });
+    pptx.layout = "VERTICAL";
+  }
 
   for (const slideData of slides) {
     const slide = pptx.addSlide();
@@ -97,21 +103,23 @@ export async function GET(
         color: "FFFFFF",
       });
 
+      // Common addText options for content items
+      const contentTextOpts = {
+        x: 0.5,
+        y: 1.4,
+        w: "90%",
+        h: 3.5,
+        color: "E0E0E0",
+        valign: "top" as const,
+      };
+
       // Add bullet points
       if (slideData.points && slideData.points.length > 0) {
         const bulletItems = slideData.points.map((point) => ({
           text: point,
           options: { bullet: true, breakLine: true },
         }));
-        slide.addText(bulletItems, {
-          x: 0.5,
-          y: 1.4,
-          w: "90%",
-          h: 3.5,
-          fontSize: 18,
-          color: "E0E0E0",
-          valign: "top",
-        });
+        slide.addText(bulletItems, { ...contentTextOpts, fontSize: 18 });
       }
 
       // Add summary cards if present
@@ -120,15 +128,7 @@ export async function GET(
           text: `${card.label}: ${card.value}`,
           options: { bullet: true, breakLine: true },
         }));
-        slide.addText(cardTexts, {
-          x: 0.5,
-          y: 1.4,
-          w: "90%",
-          h: 3.5,
-          fontSize: 16,
-          color: "E0E0E0",
-          valign: "top",
-        });
+        slide.addText(cardTexts, { ...contentTextOpts, fontSize: 16 });
       }
     }
 
