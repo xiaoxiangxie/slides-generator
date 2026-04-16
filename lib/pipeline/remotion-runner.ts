@@ -63,17 +63,16 @@ function buildSrt(entries: SubtitleEntry[]): string {
     .join("\n\n");
 }
 
-/** 从 02-outline.md 提取每页旁白文本 */
+/** 从 JSON outline 提取每页旁白文本 */
 function parseNarrations(outlineContent: string): string[] {
-  const narrations: string[] = [];
-  // 匹配 ### 旁白 后面的文本块（到下一个 ### 或 ## 为止）
-  const regex = /###\s*旁白\s*\n([\s\S]*?)(?=\n###|\n##|$)/g;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(outlineContent)) !== null) {
-    const text = match[1].trim();
-    if (text) narrations.push(text);
+  try {
+    // 去掉可能的 markdown 代码块标记
+    const cleaned = outlineContent.replace(/```(?:json|markdown)?\n?/g, "").trim();
+    const slides = JSON.parse(cleaned);
+    return slides.map((s: any) => s.narration || s.narrations || s.旁白 || "");
+  } catch {
+    return [];
   }
-  return narrations;
 }
 
 /** 根据旁白和 videoStyle 计算字幕时间轴 */
@@ -117,6 +116,8 @@ function buildPackageJson(taskId: string): string {
       build: "remotion render PPT-Video",
     },
     dependencies: {
+      "@remotion/bundler": "^4.0.0",
+      "@remotion/cli": "^4.0.0",
       remotion: "^4.0.0",
       react: "^18.0.0",
       "react-dom": "^18.0.0",
@@ -145,52 +146,46 @@ function buildTsConfig(): string {
 }
 
 function buildParseOutlineTs(): string {
-  return `// 解析 02-outline.md，提取每页旁白
+  return `// 从 JSON outline 中直接读取每页旁白
 export function parseNarrations(content: string): string[] {
-  const narrations: string[] = [];
-  const regex = /###\\s*旁白\\s*\\n([\\s\\S]*?)(?=\\n###|\\n##|$)/g;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(content)) !== null) {
-    const text = match[1].trim();
-    if (text) narrations.push(text);
+  try {
+    const slides = JSON.parse(content);
+    return slides.map((s: any) => s.narration || s.narrations || s.旁白 || "");
+  } catch {
+    return [];
   }
-  return narrations;
-}
-`;
 }
 
-function buildParseSlideTs(): string {
-  return `// 从 HTML 字符串中提取幻灯片数据（标题 + 要点）
+// 从 JSON outline 解析幻灯片结构
 export interface SlideData {
+  type: string;
   title: string;
-  points: string[];
-  bgColor: string;
+  subtitle?: string;
+  points?: string[];
+  summary_cards?: { label: string; value: string }[];
+  narration?: string;
+  bgColor?: string;
 }
 
-export function parseSlides(html: string): SlideData[] {
-  // 提取所有 <section class="slide">...</section>
-  const slides: SlideData[] = [];
-  const sectionRegex = /<section[^>]*class="[^"]*slide[^"]*"[^>]*>([\s\S]*?)<\\/section>/gi;
-  let match: RegExpExecArray | null;
-  while ((match = sectionRegex.exec(html)) !== null) {
-    const inner = match[1];
-    // 提取标题
-    const titleMatch = inner.match(/<h[12][^>]*>([\s\S]*?)<\\/h[12]>/i);
-    const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, "").trim() : "";
-    // 提取 li 要点
-    const points: string[] = [];
-    const liRegex = /<li[^>]*>([\s\S]*?)<\\/li>/gi;
-    let li: RegExpExecArray | null;
-    while ((li = liRegex.exec(inner)) !== null) {
-      const text = li[1].replace(/<[^>]+>/g, "").trim();
-      if (text) points.push(text);
-    }
-    slides.push({ title, points, bgColor: "#1a1a1a" });
+export function parseSlides(content: string): SlideData[] {
+  try {
+    const slides = JSON.parse(content);
+    return slides.map((s: any) => ({
+      type: s.type || "concept",
+      title: s.title || "",
+      subtitle: s.subtitle,
+      points: s.points || [],
+      summary_cards: s.summary_cards || [],
+      narration: s.narration || s.narrations || s.旁白 || "",
+      bgColor: s.bgColor || "#1a1a1a",
+    }));
+  } catch {
+    return [];
   }
-  return slides;
 }
 `;
 }
+
 
 function buildThemeTs(accentColor: string, bgColor: string, textColor: string): string {
   return `// 从 HTML 提取的主题变量
@@ -270,7 +265,7 @@ export const CaptionOverlay: React.FC<Props> = ({ subtitles }) => {
 function buildSlideSceneTsx(width: number, height: number): string {
   return `import React from "react";
 import { useCurrentFrame, useVideoConfig, spring, interpolate } from "remotion";
-import type { SlideData } from "./parseSlide";
+import type { SlideData } from "./parseOutline";
 
 interface Props {
   slide: SlideData;
@@ -282,6 +277,9 @@ export const SlideScene: React.FC<Props> = ({ slide }) => {
 
   const titleOpacity = spring({ frame, fps, config: { damping: 20 } });
   const titleY = interpolate(titleOpacity, [0, 1], [40, 0]);
+
+  const accentColor = "#FF5722";
+  const textColor = "#ffffff";
 
   return (
     <div
@@ -295,7 +293,7 @@ export const SlideScene: React.FC<Props> = ({ slide }) => {
         alignItems: "flex-start",
         padding: "8%",
         fontFamily: "Manrope, sans-serif",
-        color: "#fff",
+        color: textColor,
         position: "relative",
         overflow: "hidden",
       }}
@@ -322,30 +320,54 @@ export const SlideScene: React.FC<Props> = ({ slide }) => {
         {slide.title}
       </h1>
 
-      {/* 要点 */}
-      <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.7em" }}>
-        {slide.points.map((point, i) => {
-          const itemOpacity = spring({ frame: frame - (i + 1) * 6, fps, config: { damping: 20 } });
-          const itemY = interpolate(Math.max(0, itemOpacity), [0, 1], [24, 0]);
-          return (
-            <li
-              key={i}
-              style={{
-                fontSize: clamp(18, ${Math.round(width * 0.022)}, 42),
-                opacity: itemOpacity,
-                transform: \`translateY(\${itemY}px)\`,
-                display: "flex",
-                alignItems: "center",
-                gap: "0.6em",
-                color: "rgba(255,255,255,0.88)",
-              }}
-            >
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff", flexShrink: 0, opacity: 0.6 }} />
-              {point}
-            </li>
-          );
-        })}
-      </ul>
+      {/* 要点或摘要卡片 */}
+      {slide.type === "summary" && slide.summary_cards ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1.5rem", width: "100%", maxWidth: 900 }}>
+          {slide.summary_cards.map((card: any, i: number) => {
+            const itemOpacity = spring({ frame: frame - (i + 1) * 6, fps, config: { damping: 20 } });
+            const itemY = interpolate(Math.max(0, itemOpacity), [0, 1], [24, 0]);
+            return (
+              <div
+                key={i}
+                style={{
+                  background: "rgba(255,255,255,0.08)",
+                  borderLeft: \`4px solid \${accentColor}\`,
+                  padding: "1.2rem",
+                  opacity: itemOpacity,
+                  transform: \`translateY(\${itemY}px)\`,
+                }}
+              >
+                <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", marginBottom: "0.5rem", textTransform: "uppercase", letterSpacing: "0.1em" }}>{card.label}</p>
+                <p style={{ fontSize: 20, fontWeight: 600 }}>{card.value}</p>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.7em" }}>
+          {(slide.points || []).map((point: string, i: number) => {
+            const itemOpacity = spring({ frame: frame - (i + 1) * 6, fps, config: { damping: 20 } });
+            const itemY = interpolate(Math.max(0, itemOpacity), [0, 1], [24, 0]);
+            return (
+              <li
+                key={i}
+                style={{
+                  fontSize: clamp(18, ${Math.round(width * 0.022)}, 42),
+                  opacity: itemOpacity,
+                  transform: \`translateY(\${itemY}px)\`,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.6em",
+                  color: "rgba(255,255,255,0.88)",
+                }}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: accentColor, flexShrink: 0 }} />
+                {point}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 };
@@ -386,19 +408,16 @@ function buildVideoTsx(): string {
   return `import React from "react";
 import { AbsoluteFill, Series } from "remotion";
 import { SlideScene } from "./SlideScene";
-import { CaptionOverlay } from "./CaptionOverlay";
-import { parseSlides } from "./parseSlide";
-import { parseNarrations } from "./parseOutline";
+import { parseSlides, parseNarrations } from "./parseOutline";
 import { calculateSubtitles } from "./generateSubtitles";
 
 export interface VideoProps {
-  htmlContent: string;
   outlineContent: string;
   durationInFrames?: number;
 }
 
-export const PPTVideo: React.FC<VideoProps> = ({ htmlContent, outlineContent }) => {
-  const slides = parseSlides(htmlContent);
+export const PPTVideo: React.FC<VideoProps> = ({ outlineContent }) => {
+  const slides = parseSlides(outlineContent);
   const narrations = parseNarrations(outlineContent);
   const subtitles = calculateSubtitles(narrations);
 
@@ -413,7 +432,6 @@ export const PPTVideo: React.FC<VideoProps> = ({ htmlContent, outlineContent }) 
           <Series.Sequence key={i} durationInFrames={slideFrames[i] ?? 90}>
             <AbsoluteFill>
               <SlideScene slide={slide} />
-              <CaptionOverlay subtitles={subtitles} />
             </AbsoluteFill>
           </Series.Sequence>
         ))}
@@ -424,7 +442,7 @@ export const PPTVideo: React.FC<VideoProps> = ({ htmlContent, outlineContent }) 
 `;
 }
 
-function buildIndexTs(htmlContent: string, outlineContent: string, durationInFrames: number): string {
+function buildIndexTs(outlineContent: string, durationInFrames: number): string {
   return `import { registerRoot, Composition } from "remotion";
 import { PPTVideo } from "./Video";
 import { calculateMetadata } from "./calculateMetadata";
@@ -436,7 +454,6 @@ registerRoot(() => (
       component={PPTVideo}
       calculateMetadata={calculateMetadata}
       defaultProps={{
-        htmlContent: ${JSON.stringify(htmlContent)},
         outlineContent: ${JSON.stringify(outlineContent)},
         durationInFrames: ${durationInFrames},
       }}
@@ -480,7 +497,6 @@ export async function runRemotionRender(opts: RemotionRenderOptions): Promise<Re
 
   // src 文件
   await writeFile(path.join(remotionDir, "src", "parseOutline.ts"), buildParseOutlineTs(), "utf-8");
-  await writeFile(path.join(remotionDir, "src", "parseSlide.ts"), buildParseSlideTs(), "utf-8");
   await writeFile(
     path.join(remotionDir, "src", "styles", "theme.ts"),
     buildThemeTs(accentMatch?.[1] ?? "#b8844a", bgMatch?.[1] ?? "#1a1a1a", textMatch?.[1] ?? "#ffffff"),
@@ -508,8 +524,8 @@ export async function runRemotionRender(opts: RemotionRenderOptions): Promise<Re
   );
   await writeFile(path.join(remotionDir, "src", "Video.tsx"), buildVideoTsx(), "utf-8");
   await writeFile(
-    path.join(remotionDir, "src", "index.ts"),
-    buildIndexTs(htmlContent, outlineContent, durationInFrames),
+    path.join(remotionDir, "src", "index.tsx"),
+    buildIndexTs(outlineContent, durationInFrames),
     "utf-8"
   );
 
@@ -524,7 +540,7 @@ export async function runRemotionRender(opts: RemotionRenderOptions): Promise<Re
   const mp4Path = path.join(outputDir, `${taskId}.mp4`);
   onProgress?.("渲染视频（npx remotion render）...");
   await exec(
-    `npx remotion render src/index.ts PPT-Video --output=${mp4Path} --log=verbose`,
+    `./node_modules/.bin/remotion render src/index.tsx PPT-Video --output=${mp4Path}`,
     {
       cwd: remotionDir,
       timeout: 600_000, // 10 分钟
