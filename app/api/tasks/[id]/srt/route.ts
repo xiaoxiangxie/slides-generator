@@ -41,13 +41,21 @@ function parseSrt(content: string): SrtEntry[] {
   return entries;
 }
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function generateHtml(entries: SrtEntry[]): string {
   const rows = entries
     .map(
       (e) => `
       <div class="entry">
         <div class="time">${e.startTime} → ${e.endTime}</div>
-        <div class="text">${e.text.replace(/\n/g, "<br>")}</div>
+        <div class="text">${escapeHtml(e.text).replace(/\n/g, "<br>")}</div>
       </div>
     `
     )
