@@ -219,48 +219,6 @@ export function calculateSubtitles(narrations: string[]): SubEntry[] {
 `;
 }
 
-function buildCaptionOverlayTsx(): string {
-  return `import React from "react";
-import { useCurrentFrame } from "remotion";
-import type { SubEntry } from "./generateSubtitles";
-
-interface Props {
-  subtitles: SubEntry[];
-}
-
-export const CaptionOverlay: React.FC<Props> = ({ subtitles }) => {
-  const frame = useCurrentFrame();
-  const current = subtitles.find(s => frame >= s.startFrame && frame < s.endFrame);
-  if (!current) return null;
-
-  return (
-    <div
-      style={{
-        position: "absolute",
-        bottom: "8%",
-        left: "50%",
-        transform: "translateX(-50%)",
-        maxWidth: "80%",
-        textAlign: "center",
-        background: "rgba(0,0,0,0.72)",
-        backdropFilter: "blur(8px)",
-        color: "#fff",
-        fontSize: 28,
-        fontFamily: "Manrope, sans-serif",
-        fontWeight: 600,
-        lineHeight: 1.5,
-        padding: "0.5em 1.2em",
-        borderRadius: 12,
-        letterSpacing: "0.01em",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
-      }}
-    >
-      {current.text}
-    </div>
-  );
-};
-`;
-}
 
 function buildSlideSceneTsx(width: number, height: number): string {
   return `import React from "react";
@@ -419,11 +377,10 @@ export interface VideoProps {
 export const PPTVideo: React.FC<VideoProps> = ({ outlineContent }) => {
   const slides = parseSlides(outlineContent);
   const narrations = parseNarrations(outlineContent);
-  const subtitles = calculateSubtitles(narrations);
 
   // 计算每页帧数：按旁白时长分配
   const FPS = 30;
-  const slideFrames = subtitles.map(s => s.endFrame - s.startFrame + Math.round(1.2 * FPS));
+  const slideFrames = narrations.map(() => 90);
 
   return (
     <AbsoluteFill>
@@ -505,11 +462,6 @@ export async function runRemotionRender(opts: RemotionRenderOptions): Promise<Re
   await writeFile(
     path.join(remotionDir, "src", "generateSubtitles.ts"),
     buildGenerateSubtitlesTs(videoStyle),
-    "utf-8"
-  );
-  await writeFile(
-    path.join(remotionDir, "src", "CaptionOverlay.tsx"),
-    buildCaptionOverlayTsx(),
     "utf-8"
   );
   await writeFile(
