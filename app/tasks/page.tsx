@@ -380,6 +380,25 @@ export default function TasksPage() {
                     <a href={selected.videoPath} target="_blank" rel="noopener">{selected.videoPath.split("/").pop()}</a>
                   </div>
                 )}
+                <div className="tp-preview__file-item">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                  <button
+                    className="tp-btn"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/tasks/${selected.id}/pptx`);
+                        const data = await res.json();
+                        if (data.url) {
+                          window.open(data.url, "_blank");
+                        }
+                      } catch (err) {
+                        console.error(err);
+                      }
+                    }}
+                  >
+                    导出 PPTX（含旁白备注）
+                  </button>
+                </div>
               </div>
             )}
           </div>
