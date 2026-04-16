@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { STYLE_PRESETS, ASPECT_RATIOS, VIDEO_STYLES, type VideoStyle } from "@/lib/style-presets";
-import { getTasks, addTask, updateTask, type TaskRecord } from "@/lib/generation-store";
+import { type TaskRecord } from "@/lib/task-store";
 
 /** 从用户输入中提取任务名称 */
 function extractTaskName(input: string, inputType: "url" | "text"): string {
@@ -52,30 +52,25 @@ export default function Home() {
   const [error, setError] = useState("");
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [showTaskList, setShowTaskList] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
 
-  // Mount 时从 SQLite 同步任务列表（SQLite 是唯一数据源）
+  // 从 SQLite API 加载任务列表（最新 10 条）
   useEffect(() => {
-    async function syncTasks() {
+    async function loadTasks() {
       try {
         const res = await fetch("/api/tasks");
         if (res.ok) {
           const serverTasks: TaskRecord[] = await res.json();
-          // 倒序排列：最新的在最前面
+          setTotalCount(serverTasks.length);
           const sorted = [...serverTasks].sort((a,b) => b.createdAt - a.createdAt);
-          const trimmed = sorted.slice(0, 30);
-          localStorage.setItem("slides-tasks", JSON.stringify(trimmed));
-          setTasks(trimmed);
-        } else {
-          // API 失败时降级到本地缓存
-          setTasks(getTasks());
+          setTasks(sorted.slice(0, 10));
         }
-      } catch {
-        setTasks(getTasks());
-      }
+      } catch { /* ignore */ }
     }
-    syncTasks();
+    loadTasks();
   }, []);
 
+  // 监听生成中任务的 SSE 进度
   useEffect(() => {
     const runningTasks = tasks.filter((t) => t.status === "generating");
     if (runningTasks.length === 0) return;
@@ -85,19 +80,40 @@ export default function Home() {
       es.onmessage = (e) => {
         const data = JSON.parse(e.data);
         if (data.type === "progress" || data.type === "running") {
-          updateTask(task.id, { status: "generating", skill: data.skill || "", step: data.step || "", progress: data.progress || 50, name: data.name || task.name });
-          setTasks([...getTasks()]);
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === task.id
+                ? { ...t, status: "generating", skill: data.skill || t.skill, step: data.step || t.step, progress: data.progress ?? t.progress, name: data.name || t.name }
+                : t
+            )
+          );
         } else if (data.type === "done") {
-          updateTask(task.id, { status: "done", skill: "", step: "Done", progress: 100, htmlPath: data.htmlPath || "", endedAt: data.endedAt || Math.floor(Date.now() / 1000) });
-          setTasks([...getTasks()]);
+          setTasks((prev) => {
+            const updated = prev.map((t) =>
+              t.id === task.id
+                ? { ...t, status: "done" as const, skill: "", step: "Done", progress: 100, htmlPath: data.htmlPath || t.htmlPath, endedAt: data.endedAt || Math.floor(Date.now() / 1000) }
+                : t
+            );
+            return updated;
+          });
           es.close();
         } else if (data.type === "error") {
-          updateTask(task.id, { status: "error", skill: "", step: "Failed", error: data.message, endedAt: data.endedAt || Math.floor(Date.now() / 1000) });
-          setTasks([...getTasks()]);
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === task.id
+                ? { ...t, status: "error" as const, skill: "", step: "Failed", error: data.message, endedAt: data.endedAt || Math.floor(Date.now() / 1000) }
+                : t
+            )
+          );
           es.close();
         } else if (data.type === "cancelled") {
-          updateTask(task.id, { status: "cancelled", step: "已取消", endedAt: data.endedAt || Math.floor(Date.now() / 1000) });
-          setTasks([...getTasks()]);
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === task.id
+                ? { ...t, status: "cancelled" as const, step: "已取消", endedAt: data.endedAt || Math.floor(Date.now() / 1000) }
+                : t
+            )
+          );
           es.close();
         }
       };
@@ -120,9 +136,17 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "生成失败");
       const name = taskName.trim() || extractTaskName(input.trim(), inputType);
-      const task: TaskRecord = { id: data.id, status: "generating", skill: "frontend-slides", step: "Starting...", progress: 10, htmlPath: "", error: "", name, endedAt: 0, createdAt: Math.floor(Date.now() / 1000) };
-      addTask(task);
-      setTasks([...getTasks()]);
+      const preset = STYLE_PRESETS.find((s) => s.id === selectedStyle);
+      const inputContent = inputType === "text" && input.length > 200 ? input.slice(0, 200) + "…" : input;
+      // 乐观地添加到本地状态
+      const newTask: TaskRecord = {
+        id: data.id, status: "generating", skill: "frontend-slides", step: "Starting...", progress: 10,
+        htmlPath: "", error: "", name, endedAt: 0, createdAt: Math.floor(Date.now() / 1000),
+        inputType, inputContent, aspectRatio, videoStyle,
+        styleName: preset ? `${preset.nameCn} · ${preset.name}` : selectedStyle,
+      };
+      setTasks((prev) => [newTask, ...prev].slice(0, 10));
+      setTotalCount((prev) => prev + 1);
       setShowTaskList(true);
       setLoading(false);
     } catch (e: any) {
@@ -143,16 +167,8 @@ export default function Home() {
       const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Delete failed: " + res.status);
       setTasks((prev) => prev.filter((t) => t.id !== id));
-    } catch (e) {
-      console.error("[deleteTask]", e);
-      // 失败时刷新列表以同步最新状态
-      const res = await fetch("/api/tasks");
-      if (res.ok) {
-        const serverTasks: TaskRecord[] = await res.json();
-        const sorted = [...serverTasks].sort((a, b) => b.createdAt - a.createdAt);
-        setTasks(sorted.slice(0, 30));
-      }
-    }
+      setTotalCount((prev) => Math.max(0, prev - 1));
+    } catch { /* ignore */ }
   }
 
   const selectedPreset = STYLE_PRESETS.find(s => s.id === selectedStyle)!;
@@ -199,99 +215,103 @@ export default function Home() {
         <div className="task-panel" onClick={(e) => e.stopPropagation()}>
           <div className="task-panel__head">
             <span>{tasks.length} Task{tasks.length !== 1 ? "s" : ""}</span>
-            {tasks.length > 0 && (
-              <button className="task-panel__clear" onClick={async () => { 
-                // 只清除客户端显示，实际删除需要调接口。这里简单处理为清空列表。
-                localStorage.removeItem("slides-tasks");
-                setTasks([]); 
-                setShowTaskList(false); 
-              }}>Clear List</button>
-            )}
           </div>
           {tasks.length === 0 && <div className="task-panel__empty">No tasks yet</div>}
-          {tasks.map((task) => {
-            // tasks 已按 createdAt 倒序（最新在前），无需 reverse
-            const duration = task.endedAt && task.createdAt ? formatDuration(task.endedAt - task.createdAt) : "";
-            const isFinal = task.status === "done" || task.status === "error" || task.status === "cancelled";
-            return (
-              <div key={task.id} className={`task-row task-row--${task.status}`}>
-                {/* Top: task ID + name + status badge */}
-                <div className="task-row__top">
-                  <div className="task-row__id">{task.id}</div>
-                  <div className="task-row__name" title={task.name}>{task.name || "Untitled Slide"}</div>
-                  <div className="task-row__badges">
-                    {task.status === "generating" && (
-                      <span className="badge badge--running">
-                        <span className="badge__dot" />
-                        {task.progress}%
-                      </span>
-                    )}
-                    {task.status === "done" && (
-                      <>
-                        <a href={"/preview/" + task.id} target="_blank" rel="noopener" className="badge badge--done">Done ↗</a>
-                        {task.videoPath && <a href={task.videoPath} target="_blank" rel="noopener" className="badge badge--video">Video ↗</a>}
-                      </>
-                    )}
-                    {task.status === "error" && <span className="badge badge--error">Error</span>}
-                    {task.status === "cancelled" && <span className="badge badge--cancelled">Cancelled</span>}
-                  </div>
-                </div>
+          {tasks.length > 0 && (
+            <>
+              <div className="task-panel__list">
+                {tasks.slice(0, 10).map((task) => {
+                  const duration = task.endedAt && task.createdAt ? formatDuration(task.endedAt - task.createdAt) : "";
+                  const isFinal = task.status === "done" || task.status === "error" || task.status === "cancelled";
+                  return (
+                    <div key={task.id} className={`task-row task-row--${task.status}`}>
+                      {/* Top: task ID + name + status badge */}
+                      <div className="task-row__top">
+                        <div className="task-row__id">{task.id}</div>
+                        <div className="task-row__name" title={task.name}>{task.name || "Untitled Slide"}</div>
+                        <div className="task-row__badges">
+                          {task.status === "generating" && (
+                            <span className="badge badge--running">
+                              <span className="badge__dot" />
+                              {task.progress}%
+                            </span>
+                          )}
+                          {task.status === "done" && (
+                            <>
+                              <a href={"/preview/" + task.id} target="_blank" rel="noopener" className="badge badge--done">Done ↗</a>
+                              {task.videoPath && <a href={task.videoPath} target="_blank" rel="noopener" className="badge badge--video">Video ↗</a>}
+                            </>
+                          )}
+                          {task.status === "error" && <span className="badge badge--error">Error</span>}
+                          {task.status === "cancelled" && <span className="badge badge--cancelled">Cancelled</span>}
+                        </div>
+                      </div>
 
-                {/* Progress bar for generating */}
-                {task.status === "generating" && (
-                  <div className="task-row__bar"><div style={{ width: `${task.progress}%` }} /></div>
-                )}
+                      {/* Progress bar for generating */}
+                      {task.status === "generating" && (
+                        <div className="task-row__bar"><div style={{ width: `${task.progress}%` }} /></div>
+                      )}
 
-                {/* Step label with animation for running tasks */}
-                <div className={`task-row__step ${task.status === "generating" ? "task-row__step--active" : ""}`}>
-                  {task.status === "generating" && (
-                    <span className="task-row__skill-tag">{task.skill || "system"}</span>
-                  )}
-                  {task.step}
-                </div>
+                      {/* Step label with animation for running tasks */}
+                      <div className={`task-row__step ${task.status === "generating" ? "task-row__step--active" : ""}`}>
+                        {task.status === "generating" && (
+                          <span className="task-row__skill-tag">{task.skill || "system"}</span>
+                        )}
+                        {task.step}
+                      </div>
 
-                {/* Times row */}
-                <div className="task-row__times">
-                  <span className="task-row__time task-row__time--created">
-                    <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                      <circle cx="6" cy="6" r="4.5" /><path d="M6 3.5v2.75l1.75 1.75" />
-                    </svg>
-                    {formatRelativeTime(task.createdAt)}
-                  </span>
-                  {isFinal && task.endedAt > 0 && (
-                    <>
-                      <span className="task-row__sep">·</span>
-                      <span className="task-row__time">
-                        <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                          <path d="M1 6.5h10M6.5 2l4 4.5-4 4.5" />
-                        </svg>
-                        {duration}
-                      </span>
-                    </>
-                  )}
-                </div>
+                      {/* Times row */}
+                      <div className="task-row__times">
+                        <span className="task-row__time task-row__time--created">
+                          <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                            <circle cx="6" cy="6" r="4.5" /><path d="M6 3.5v2.75l1.75 1.75" />
+                          </svg>
+                          {formatRelativeTime(task.createdAt)}
+                        </span>
+                        {isFinal && task.endedAt > 0 && (
+                          <>
+                            <span className="task-row__sep">·</span>
+                            <span className="task-row__time">
+                              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                                <path d="M1 6.5h10M6.5 2l4 4.5-4 4.5" />
+                              </svg>
+                              {duration}
+                            </span>
+                          </>
+                        )}
+                      </div>
 
-                {/* Error message for failed tasks */}
-                {task.status === "error" && task.error && (
-                  <div className="task-row__error">{task.error}</div>
-                )}
+                      {/* Error message for failed tasks */}
+                      {task.status === "error" && task.error && (
+                        <div className="task-row__error">{task.error}</div>
+                      )}
 
-                {/* Action buttons */}
-                <div className="task-row__actions">
-                  {task.status === "generating" && (
-                    <button className="task-action task-action--cancel" onClick={() => cancelTask(task.id)}>
-                      Cancel
-                    </button>
-                  )}
-                  {isFinal && (
-                    <button className="task-action task-action--delete" onClick={() => deleteTask(task.id)}>
-                      Delete
-                    </button>
-                  )}
-                </div>
+                      {/* Action buttons */}
+                      <div className="task-row__actions">
+                        {task.status === "generating" && (
+                          <button className="task-action task-action--cancel" onClick={() => cancelTask(task.id)}>
+                            Cancel
+                          </button>
+                        )}
+                        {isFinal && (
+                          <button className="task-action task-action--delete" onClick={() => deleteTask(task.id)}>
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
+              {totalCount > 10 && (
+                <div className="task-panel__footer">
+                  <button className="task-panel__more" onClick={() => window.location.href = "/tasks"}>
+                    查看全部 {totalCount} 任务 →
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
@@ -383,44 +403,48 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Ratio + VideoStyle + Generate row */}
-            <div className="bottom-row">
-              <div className="options-col">
-                <div className="ratio-group">
-                  {ASPECT_RATIOS.map(r => (
-                    <button
-                      key={r.id}
-                      className={`ratio ${aspectRatio === r.id ? "ratio--on" : ""}`}
-                      onClick={() => setAspectRatio(r.id as "16:9" | "9:16")}
-                      title={r.hint}
-                    >
-                      {r.name}
-                    </button>
-                  ))}
-                </div>
-                {/* 增加 Video Style 选项 */}
-                <div className="video-style-group" style={{ display: 'flex', gap: '0.4rem', marginTop: '0.5rem' }}>
-                  {VIDEO_STYLES.map(s => (
-                    <button
-                      key={s.id}
-                      className={`vstyle-btn ${videoStyle === s.id ? "vstyle-btn--on" : ""}`}
-                      onClick={() => setVideoStyle(s.id)}
-                      title={s.hint}
-                    >
-                      {s.nameCn}
-                    </button>
-                  ))}
-                </div>
+            {/* 尺寸选择 */}
+            <div className="options-row">
+              <span className="options-label">尺寸</span>
+              <div className="ratio-group">
+                {ASPECT_RATIOS.map(r => (
+                  <button
+                    key={r.id}
+                    className={`ratio ${aspectRatio === r.id ? "ratio--on" : ""}`}
+                    onClick={() => setAspectRatio(r.id as "16:9" | "9:16")}
+                    title={r.hint}
+                  >
+                    {r.name}
+                  </button>
+                ))}
               </div>
-
-              <button onClick={handleGenerate} disabled={loading} className="gen-btn">
-                {loading ? (
-                  <><svg className="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" strokeLinecap="round"/></svg> Generating...</>
-                ) : (
-                  <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0L14.59 8.41L23 11L14.59 13.59L12 22L9.41 13.59L1 11L9.41 8.41Z"/></svg> Generate</>
-                )}
-              </button>
             </div>
+
+            {/* 字幕速度 */}
+            <div className="video-style-row">
+              <span className="options-label">字幕速度</span>
+              <div className="video-style-group">
+                {VIDEO_STYLES.map(s => (
+                  <button
+                    key={s.id}
+                    className={`vstyle-btn ${videoStyle === s.id ? "vstyle-btn--on" : ""}`}
+                    onClick={() => setVideoStyle(s.id)}
+                    title={s.hint}
+                  >
+                    {s.nameCn}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Generate 按钮 — 单独一行 */}
+            <button onClick={handleGenerate} disabled={loading} className="gen-btn">
+              {loading ? (
+                <><svg className="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" strokeLinecap="round"/></svg> Generating...</>
+              ) : (
+                <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0L14.59 8.41L23 11L14.59 13.59L12 22L9.41 13.59L1 11L9.41 8.41Z"></path></svg> Generate</>
+              )}
+            </button>
 
             {loading && <p className="hint">Track progress in the Tasks panel ↑</p>}
           </div>
@@ -590,6 +614,32 @@ export default function Home() {
         .task-panel__empty {
           padding: 1.2rem; text-align: center;
           font-size: 0.8rem; color: var(--text3);
+        }
+
+        .task-panel__list {
+          max-height: 420px;
+          overflow-y: auto;
+        }
+
+        .task-panel__footer {
+          padding: 0.6rem 0.85rem;
+          border-top: 1px solid var(--border);
+          text-align: center;
+        }
+
+        .task-panel__more {
+          background: none;
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          padding: 0.5rem 1rem;
+          font-size: 0.8rem;
+          color: var(--accent2);
+          cursor: pointer;
+          width: 100%;
+        }
+
+        .task-panel__more:hover {
+          background: var(--hover);
         }
 
         .task-row {
@@ -993,16 +1043,19 @@ export default function Home() {
           align-items: center;
         }
 
-        /* Bottom row */
-        .bottom-row {
+/* Options rows */
+        .options-row, .video-style-row {
           display: flex;
-          gap: 0.6rem;
           align-items: center;
+          gap: 0.6rem;
         }
 
-        .options-col {
-          display: flex;
-          flex-direction: column;
+.options-label {
+          font-size: 0.72rem;
+          color: var(--text2);
+          font-weight: 500;
+          white-space: nowrap;
+          min-width: 3.5rem;
         }
 
         .ratio-group { display: flex; gap: 0.3rem; }
@@ -1031,17 +1084,24 @@ export default function Home() {
           color: var(--text2); font-size: 0.68rem; font-weight: 500;
           font-family: var(--font-body);
           cursor: pointer; transition: all 0.15s;
+          white-space: nowrap;
         }
         .vstyle-btn:hover { border-color: var(--border2); color: var(--text); }
         .vstyle-btn--on { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
 
-        .gen-btn {
+        .video-style-group {
+          display: flex;
+          gap: 0.3rem;
           flex: 1;
+        }
+
+        .gen-btn {
+          width: 100%;
           display: flex;
           align-items: center;
           justify-content: center;
           gap: 0.5rem;
-          padding: 0.8rem 1.2rem;
+          padding: 0.85rem 1.2rem;
           background: var(--accent);
           border: none;
           border-radius: var(--radius);

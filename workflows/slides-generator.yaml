@@ -12,13 +12,15 @@ inputs:
   - name: source
     description: URL 或文本内容
   - name: input_type
-    description: "url" 或 "text"
+    description: "'url' 或 'text'"
   - name: style_id
     description: 风格预设 ID
+  - name: style_json
+    description: 风格参数 JSON 字符串
   - name: aspect_ratio
-    description: "16:9" 或 "9:16"
+    description: "'16:9' 或 '9:16'"
   - name: video_style
-    description: "normal" | "fast" | "slow"
+    description: "'normal' | 'fast' | 'slow'"
   - name: output_dir
     description: 输出目录路径
   - name: width
@@ -29,31 +31,28 @@ inputs:
 steps:
 
   - id: extract_content
-    role: agent-browser
+    role: baoyu-url-to-markdown/agent
     name: 抓取页面内容
     emoji: "🌐"
     task: |
-      请从以下 URL 提取页面主要内容并转换为 Markdown：
+      请使用 baoyu-url-to-markdown 工具从 URL 提取页面内容并转换为 Markdown：
 
       URL: {{source}}
-
-      如果需要，可以使用备选的 baoyu-url-to-markdown 工具。
     output: raw_content
-    condition: "\"{{input_type}}\" == 'url'"
+    condition: "{{input_type}} equals url"
 
   - id: use_text_directly
-    role: agent-browser
+    role: text-passthrough/agent
     name: 使用文本内容
     emoji: "📝"
     task: |
-      用户直接输入了文本内容，将其作为原始内容：
-
+      直接将以下文本作为 markdown 内容输出在代码块中，不要做任何修改：
       {{source}}
     output: raw_content
-    condition: "\"{{input_type}}\" == 'text'"
+    condition: "{{input_type}} equals text"
 
   - id: analyze_length
-    role: ljg-writes
+    role: ljg-writes/agent
     name: 分析篇幅
     emoji: "📏"
     task: |
@@ -69,9 +68,10 @@ steps:
       直接输出 JSON 代码块，不要有多余内容。
     output: analysis_result
     depends_on: [extract_content, use_text_directly]
+    depends_on_mode: any_completed
 
   - id: plan_slides
-    role: ljg-writes
+    role: ljg-writes/agent
     name: 规划幻灯片
     emoji: "✍️"
     task: |
@@ -82,12 +82,35 @@ steps:
 
       篇幅类型: {{analysis_result}}
 
-      请根据规划结果，直接输出 markdown 大纲代码块。
+      请根据规划结果，直接输出 JSON 代码块，格式如下（不要输出 markdown 大纲）：
+      ```json
+      [
+        {
+          "type": "title",
+          "title": "标题文字",
+          "subtitle": "副标题"
+        },
+        {
+          "type": "concept",
+          "title": "页面标题",
+          "points": ["要点1", "要点2", "要点3"]
+        },
+        {
+          "type": "summary",
+          "title": "回顾标题",
+          "summary_cards": [
+            { "label": "标签1", "value": "内容1" },
+            { "label": "标签2", "value": "内容2" }
+          ]
+        }
+      ]
+      ```
+      每张幻灯片都要有 narrations（旁白）字段！
     output: slide_outline
     depends_on: [analyze_length]
 
   - id: generate_slides
-    role: frontend-slides
+    role: frontend-slides/agent
     name: 生成HTML
     emoji: "🎨"
     task: |
@@ -95,22 +118,12 @@ steps:
 
       {{slide_outline}}
 
-      风格: {{style_id}}
-      比例: {{aspect_ratio}}
+      ## 风格参数（JSON 格式）
+
+      {{style_json}}
+
+      注意：比例 = {{aspect_ratio}}，从 style_json 中取 style_name、style_bg、style_text、style_accent、style_secondary、style_display_font、style_body_font、style_vibe、layout_instruction 等字段应用到 HTML 中。
     output: html_path
     depends_on: [plan_slides]
 
-  - id: render_video
-    role: remotion
-    name: 渲染视频
-    emoji: "🎬"
-    task: |
-      请根据以下信息渲染视频：
-
-      HTML路径: {{html_path}}
-      大纲: {{slide_outline}}
-      输出目录: {{output_dir}}
-      尺寸: {{width}}x{{height}}
-      风格: {{video_style}}
-    output: video_result
-    depends_on: [generate_slides]
+  

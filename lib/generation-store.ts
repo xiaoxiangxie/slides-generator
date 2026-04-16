@@ -17,6 +17,11 @@ export interface TaskRecord {
   createdAt: number;
   videoStyle?: string;
   videoPath?: string;
+  // 创建参数
+  inputType?: "url" | "text";
+  inputContent?: string; // URL 或文本内容，文本过长时只存前200字
+  aspectRatio?: "16:9" | "9:16";
+  styleName?: string;
 }
 
 const STORAGE_KEY = "slides-tasks";
@@ -33,10 +38,10 @@ export function getTasks(): TaskRecord[] {
   }
 }
 
-export function saveTasks(tasks: TaskRecord[]) {
+export function saveTasks(tasks: TaskRecord[], trim = true) {
   if (typeof window === "undefined") return;
-  const trimmed = tasks.slice(-20);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+  const toSave = trim ? tasks.slice(-20) : tasks;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
 }
 
 export function addTask(task: TaskRecord) {

@@ -13,6 +13,8 @@ export {
   addTask,
   updateTask,
   getTask,
+  addJobLog,
+  getJobLogs,
 } from "./db";
 
-export type { JobRecord, TaskRecord } from "./db";
+export type { JobRecord, TaskRecord, JobLog } from "./db";

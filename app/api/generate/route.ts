@@ -25,19 +25,28 @@ export async function POST(req: NextRequest) {
     }
 
     const id = randomUUID().split("-")[0];
-    // taskName 由前端传入，不填则由 Pipeline 内部自动提取
-    createJob(id, taskName || "");
-    updateJob(id, { status: "generating", step: "Starting pipeline...", progress: 5, name: taskName || "" });
+    const resolvedInputType = inputType || "url";
+    const resolvedAspectRatio = aspectRatio || "16:9";
+    const resolvedVideoStyle = videoStyle || "normal";
+    const resolvedTaskName = taskName || "";
+    const resolvedStyleName = `${style.nameCn} · ${style.name}`;
+    // 文本过长时截断存储
+    const resolvedInputContent = resolvedInputType === "text" && input.length > 200
+      ? input.slice(0, 200) + "…"
+      : input;
+
+    createJob(id, resolvedTaskName, resolvedVideoStyle, resolvedInputType, resolvedInputContent, resolvedAspectRatio, resolvedStyleName);
+    updateJob(id, { status: "generating", step: "Starting pipeline...", progress: 5, name: resolvedTaskName });
 
     // 异步启动 Pipeline（不阻塞响应）
     runPipeline({
       id,
       input: input.trim(),
-      inputType: inputType || "url",
+      inputType: resolvedInputType,
       style,
-      aspectRatio: aspectRatio || "16:9",
-      taskName: taskName || "",
-      videoStyle: videoStyle || "normal",
+      aspectRatio: resolvedAspectRatio,
+      taskName: resolvedTaskName,
+      videoStyle: resolvedVideoStyle,
     }).catch((e) => {
       console.error("[Pipeline error]", e);
       updateJob(id, { status: "error", step: "Pipeline failed", error: e.message });

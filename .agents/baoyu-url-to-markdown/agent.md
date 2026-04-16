@@ -7,14 +7,16 @@ emoji: "📄"
 
 ## 目标 URL
 
-{{url}}
+{{source}}
 
 ## 使用方法
 
-请调用 url-to-markdown 工具，传入目标 URL：
+请使用 Bash 工具执行以下命令将 URL 转换为 Markdown：
 ```
-bun run ~/.agents/skills/baoyu-url-to-markdown/scripts/main.ts {{url}}
+cd ~/.agents/skills/baoyu-url-to-markdown/scripts && npx --yes tsx main.ts {{source}}
 ```
+
+请将命令的输出（Markdown 内容）直接放在 ```markdown ``` 代码块中输出。
 
 ## 输出要求
 
