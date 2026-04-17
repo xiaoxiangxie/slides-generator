@@ -220,119 +220,60 @@ export function calculateSubtitles(narrations: string[]): SubEntry[] {
 }
 
 
-function buildSlideSceneTsx(width: number, height: number): string {
-  return `import React from "react";
-import { useCurrentFrame, useVideoConfig, spring, interpolate } from "remotion";
+function buildSlideSceneTsx(): string {
+  return `import React, { useRef, useEffect } from "react";
+import { useCurrentFrame } from "remotion";
 import type { SlideData } from "./parseOutline";
 
 interface Props {
-  slide: SlideData;
+  slides: SlideData[];
+  narrationText: string;
+  currentSlideIndex: number;
+  iframeUrl: string;
 }
 
-export const SlideScene: React.FC<Props> = ({ slide }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+export const SlideScene: React.FC<Props> = ({ slides, narrationText, currentSlideIndex, iframeUrl }) => {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const titleOpacity = spring({ frame, fps, config: { damping: 20 } });
-  const titleY = interpolate(titleOpacity, [0, 1], [40, 0]);
-
-  const accentColor = "#FF5722";
-  const textColor = "#ffffff";
+  useEffect(() => {
+    if (!iframeRef.current) return;
+    const iframe = iframeRef.current;
+    const handleLoad = () => {
+      iframe.contentWindow?.postMessage(
+        { type: "scrollToSlide", index: currentSlideIndex },
+        "*"
+      );
+    };
+    iframe.addEventListener("load", handleLoad);
+    if (iframe.contentDocument?.readyState === "complete") {
+      handleLoad();
+    }
+    return () => iframe.removeEventListener("load", handleLoad);
+  }, [currentSlideIndex]);
 
   return (
     <div
       style={{
-        width: ${width},
-        height: ${height},
-        background: slide.bgColor || "#1a1a1a",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        alignItems: "flex-start",
-        padding: "8%",
-        fontFamily: "Manrope, sans-serif",
-        color: textColor,
+        width: "100%",
+        height: "100%",
         position: "relative",
         overflow: "hidden",
+        background: "#000",
       }}
     >
-      {/* 背景装饰 */}
-      <div style={{
-        position: "absolute", inset: 0,
-        background: "radial-gradient(ellipse at 20% 50%, rgba(255,255,255,0.04) 0%, transparent 60%)",
-        pointerEvents: "none",
-      }} />
-
-      {/* 标题 */}
-      <h1
+      <iframe
+        ref={iframeRef}
+        src={iframeUrl}
         style={{
-          fontSize: clamp(32, ${Math.round(width * 0.055)}, 96),
-          fontWeight: 800,
-          lineHeight: 1.15,
-          opacity: titleOpacity,
-          transform: \`translateY(\${titleY}px)\`,
-          marginBottom: "1.2em",
-          letterSpacing: "-0.02em",
+          width: "100%",
+          height: "100%",
+          border: "none",
         }}
-      >
-        {slide.title}
-      </h1>
-
-      {/* 要点或摘要卡片 */}
-      {slide.type === "summary" && slide.summary_cards ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1.5rem", width: "100%", maxWidth: 900 }}>
-          {slide.summary_cards.map((card: any, i: number) => {
-            const itemOpacity = spring({ frame: frame - (i + 1) * 6, fps, config: { damping: 20 } });
-            const itemY = interpolate(Math.max(0, itemOpacity), [0, 1], [24, 0]);
-            return (
-              <div
-                key={i}
-                style={{
-                  background: "rgba(255,255,255,0.08)",
-                  borderLeft: \`4px solid \${accentColor}\`,
-                  padding: "1.2rem",
-                  opacity: itemOpacity,
-                  transform: \`translateY(\${itemY}px)\`,
-                }}
-              >
-                <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", marginBottom: "0.5rem", textTransform: "uppercase", letterSpacing: "0.1em" }}>{card.label}</p>
-                <p style={{ fontSize: 20, fontWeight: 600 }}>{card.value}</p>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.7em" }}>
-          {(slide.points || []).map((point: string, i: number) => {
-            const itemOpacity = spring({ frame: frame - (i + 1) * 6, fps, config: { damping: 20 } });
-            const itemY = interpolate(Math.max(0, itemOpacity), [0, 1], [24, 0]);
-            return (
-              <li
-                key={i}
-                style={{
-                  fontSize: clamp(18, ${Math.round(width * 0.022)}, 42),
-                  opacity: itemOpacity,
-                  transform: \`translateY(\${itemY}px)\`,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.6em",
-                  color: "rgba(255,255,255,0.88)",
-                }}
-              >
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: accentColor, flexShrink: 0 }} />
-                {point}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+        allow="fullscreen"
+      />
     </div>
   );
 };
-
-function clamp(min: number, val: number, max: number) {
-  return Math.min(Math.max(val, min), max);
-}
 `;
 }
 
@@ -466,7 +407,7 @@ export async function runRemotionRender(opts: RemotionRenderOptions): Promise<Re
   );
   await writeFile(
     path.join(remotionDir, "src", "SlideScene.tsx"),
-    buildSlideSceneTsx(dimensions.width, dimensions.height),
+    buildSlideSceneTsx(),
     "utf-8"
   );
   await writeFile(
