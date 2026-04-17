@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { BorderBeam } from "border-beam";
 import { STYLE_PRESETS, ASPECT_RATIOS, VIDEO_STYLES, type VideoStyle } from "@/lib/style-presets";
 import { type TaskRecord } from "@/lib/task-store";
 
-/** 从用户输入中提取任务名称 */
 function extractTaskName(input: string, inputType: "url" | "text"): string {
   if (inputType === "url") {
     try {
@@ -54,7 +54,6 @@ export default function Home() {
   const [showTaskList, setShowTaskList] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
 
-  // 从 SQLite API 加载任务列表（最新 10 条）
   useEffect(() => {
     async function loadTasks() {
       try {
@@ -62,15 +61,13 @@ export default function Home() {
         if (res.ok) {
           const serverTasks: TaskRecord[] = await res.json();
           setTotalCount(serverTasks.length);
-          const sorted = [...serverTasks].sort((a,b) => b.createdAt - a.createdAt);
-          setTasks(sorted.slice(0, 10));
+          setTasks([...serverTasks].sort((a, b) => b.createdAt - a.createdAt).slice(0, 10));
         }
-      } catch { /* ignore */ }
+      } catch {}
     }
     loadTasks();
   }, []);
 
-  // 监听生成中任务的 SSE 进度
   useEffect(() => {
     const runningTasks = tasks.filter((t) => t.status === "generating");
     if (runningTasks.length === 0) return;
@@ -80,40 +77,15 @@ export default function Home() {
       es.onmessage = (e) => {
         const data = JSON.parse(e.data);
         if (data.type === "progress" || data.type === "running") {
-          setTasks((prev) =>
-            prev.map((t) =>
-              t.id === task.id
-                ? { ...t, status: "generating", skill: data.skill || t.skill, step: data.step || t.step, progress: data.progress ?? t.progress, name: data.name || t.name }
-                : t
-            )
-          );
+          setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status: "generating", skill: data.skill || t.skill, step: data.step || t.step, progress: data.progress ?? t.progress, name: data.name || t.name } : t));
         } else if (data.type === "done") {
-          setTasks((prev) => {
-            const updated = prev.map((t) =>
-              t.id === task.id
-                ? { ...t, status: "done" as const, skill: "", step: "Done", progress: 100, htmlPath: data.htmlPath || t.htmlPath, endedAt: data.endedAt || Math.floor(Date.now() / 1000) }
-                : t
-            );
-            return updated;
-          });
+          setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status: "done" as const, skill: "", step: "Done", progress: 100, htmlPath: data.htmlPath || t.htmlPath, endedAt: data.endedAt || Math.floor(Date.now() / 1000) } : t));
           es.close();
         } else if (data.type === "error") {
-          setTasks((prev) =>
-            prev.map((t) =>
-              t.id === task.id
-                ? { ...t, status: "error" as const, skill: "", step: "Failed", error: data.message, endedAt: data.endedAt || Math.floor(Date.now() / 1000) }
-                : t
-            )
-          );
+          setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status: "error" as const, skill: "", step: "Failed", error: data.message, endedAt: data.endedAt || Math.floor(Date.now() / 1000) } : t));
           es.close();
         } else if (data.type === "cancelled") {
-          setTasks((prev) =>
-            prev.map((t) =>
-              t.id === task.id
-                ? { ...t, status: "cancelled" as const, step: "已取消", endedAt: data.endedAt || Math.floor(Date.now() / 1000) }
-                : t
-            )
-          );
+          setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status: "cancelled" as const, step: "已取消", endedAt: data.endedAt || Math.floor(Date.now() / 1000) } : t));
           es.close();
         }
       };
@@ -138,10 +110,9 @@ export default function Home() {
       const name = taskName.trim() || extractTaskName(input.trim(), inputType);
       const preset = STYLE_PRESETS.find((s) => s.id === selectedStyle);
       const inputContent = inputType === "text" && input.length > 200 ? input.slice(0, 200) + "…" : input;
-      // 乐观地添加到本地状态
       const newTask: TaskRecord = {
         id: data.id, status: "generating", skill: "frontend-slides", step: "Starting...", progress: 10,
-        htmlPath: "", error: "", name, endedAt: 0, createdAt: Math.floor(Date.now() / 1000),
+        htmlPath: "", videoPath: "", error: "", name, endedAt: 0, createdAt: Math.floor(Date.now() / 1000),
         inputType, inputContent, aspectRatio, videoStyle,
         styleName: preset ? `${preset.nameCn} · ${preset.name}` : selectedStyle,
       };
@@ -159,1018 +130,1095 @@ export default function Home() {
     try {
       await fetch(`/api/tasks/${id}/cancel`, { method: "POST" });
       setTasks((prev) => prev.map((t) => t.id === id ? { ...t, status: "cancelled" as const, step: "已取消", endedAt: Math.floor(Date.now() / 1000) } : t));
-    } catch {/* silently ignore */}
+    } catch {}
   }
 
   async function deleteTask(id: string) {
     try {
       const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Delete failed: " + res.status);
-      setTasks((prev) => prev.filter((t) => t.id !== id));
-      setTotalCount((prev) => Math.max(0, prev - 1));
-    } catch { /* ignore */ }
+      if (res.ok) {
+        setTasks((prev) => prev.filter((t) => t.id !== id));
+        setTotalCount((prev) => Math.max(0, prev - 1));
+      }
+    } catch {}
   }
 
-  const selectedPreset = STYLE_PRESETS.find(s => s.id === selectedStyle)!;
+  const selectedPreset = STYLE_PRESETS.find((s) => s.id === selectedStyle)!;
   const runningCount = tasks.filter((t) => t.status === "generating").length;
   const doneCount = tasks.filter((t) => t.status === "done").length;
 
   return (
-    <div className="page">
+    <div className="home-root">
       {/* ── Header ── */}
-      <header className="header">
-        <div className="header__left">
-          <div className="header__logo">S</div>
+      <header className="home-header">
+        <div className="home-header__brand">
+          <div className="home-header__logo">S</div>
           <div>
-            <div className="header__title">Slides Generator</div>
-            <div className="header__sub">URL or text → HTML slides</div>
+            <div className="home-header__title">Slides Generator</div>
+            <div className="home-header__subtitle">URL or text to HTML slides</div>
           </div>
         </div>
-        <div className="header__right">
-          <div className="header__stats">
-            <span className="header__stat-num">{STYLE_PRESETS.length}</span>
-            <span className="header__stat-label">styles</span>
+
+        <div className="home-header__meta">
+          <div className="home-header__stat">
+            <span className="home-header__stat-num">{STYLE_PRESETS.length}</span>
+            <span className="home-header__stat-label">styles</span>
           </div>
+
           <button
-            id="task-btn-header"
-            className={`task-btn ${runningCount > 0 ? "task-btn--running" : doneCount > 0 ? "task-btn--done" : ""}`}
-            onClick={() => setShowTaskList(v => !v)}
+            className="home-task-toggle"
+            onClick={() => setShowTaskList((v) => !v)}
           >
-            <span className={`task-btn__dot ${runningCount > 0 ? "task-btn__dot--pulse" : ""}`} />
+            <span
+              className="home-task-toggle__dot"
+              style={{
+                background: runningCount > 0 ? "var(--accent)" : doneCount > 0 ? "var(--success)" : "var(--text-dim)",
+                animation: runningCount > 0 ? "pulse-glow 1.5s ease-in-out infinite" : undefined,
+              }}
+            />
             {runningCount > 0 ? `${runningCount} running` : doneCount > 0 ? `${doneCount} done` : "Tasks"}
           </button>
         </div>
       </header>
 
-      {/* Click-away overlay for task panel */}
-      {showTaskList && (
-        <div 
-          style={{ position: "fixed", inset: 0, zIndex: 199 }} 
-          onClick={() => setShowTaskList(false)}
-        />
-      )}
+      {/* Task overlay */}
+      {showTaskList && <div className="home-task-overlay" onClick={() => setShowTaskList(false)} />}
 
       {/* Task dropdown */}
       {showTaskList && (
-        <div className="task-panel" onClick={(e) => e.stopPropagation()}>
-          <div className="task-panel__head">
-            <span>{tasks.length} Task{tasks.length !== 1 ? "s" : ""}</span>
+        <BorderBeam size="md" colorVariant="ocean" strength={0.4} duration={2.4}>
+        <div className="home-task-dropdown">
+          <div className="home-task-dropdown__head">
+            {tasks.length} Task{tasks.length !== 1 ? "s" : ""}
           </div>
-          {tasks.length === 0 && <div className="task-panel__empty">No tasks yet</div>}
-          {tasks.length > 0 && (
-            <>
-              <div className="task-panel__list">
-                {tasks.slice(0, 10).map((task) => {
-                  const duration = task.endedAt && task.createdAt ? formatDuration(task.endedAt - task.createdAt) : "";
-                  const isFinal = task.status === "done" || task.status === "error" || task.status === "cancelled";
-                  return (
-                    <div key={task.id} className={`task-row task-row--${task.status}`}>
-                      {/* Top: task ID + name + status badge */}
-                      <div className="task-row__top">
-                        <div className="task-row__id">{task.id}</div>
-                        <div className="task-row__name" title={task.name}>{task.name || "Untitled Slide"}</div>
-                        <div className="task-row__badges">
-                          {task.status === "generating" && (
-                            <span className="badge badge--running">
-                              <span className="badge__dot" />
-                              {task.progress}%
-                            </span>
-                          )}
-                          {task.status === "done" && (
-                            <>
-                              <a href={"/preview/" + task.id} target="_blank" rel="noopener" className="badge badge--done">Done ↗</a>
-                              {task.videoPath && <a href={task.videoPath} target="_blank" rel="noopener" className="badge badge--video">Video ↗</a>}
-                            </>
-                          )}
-                          {task.status === "error" && <span className="badge badge--error">Error</span>}
-                          {task.status === "cancelled" && <span className="badge badge--cancelled">Cancelled</span>}
-                        </div>
-                      </div>
-
-                      {/* Progress bar for generating */}
+          {tasks.length === 0 ? (
+            <div className="home-task-dropdown__empty">No tasks yet</div>
+          ) : (
+            <div className="home-task-dropdown__list">
+              {tasks.map((task) => {
+                const duration = task.endedAt && task.createdAt ? formatDuration(task.endedAt - task.createdAt) : "";
+                const isFinal = task.status === "done" || task.status === "error" || task.status === "cancelled";
+                return (
+                  <div key={task.id} className="home-task-item"
+                    style={{
+                      background: task.status === "generating" ? "rgba(212,165,116,0.04)" : task.status === "done" ? "rgba(74,138,90,0.03)" : undefined,
+                    }}>
+                    <div className="home-task-item__row">
+                      <span className="home-task-item__id">{task.id.slice(0, 8)}</span>
+                      <span className="home-task-item__name">{task.name || "Untitled Slide"}</span>
                       {task.status === "generating" && (
-                        <div className="task-row__bar"><div style={{ width: `${task.progress}%` }} /></div>
-                      )}
-
-                      {/* Step label with animation for running tasks */}
-                      <div className={`task-row__step ${task.status === "generating" ? "task-row__step--active" : ""}`}>
-                        {task.status === "generating" && (
-                          <span className="task-row__skill-tag">{task.skill || "system"}</span>
-                        )}
-                        {task.step}
-                      </div>
-
-                      {/* Times row */}
-                      <div className="task-row__times">
-                        <span className="task-row__time task-row__time--created">
-                          <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                            <circle cx="6" cy="6" r="4.5" /><path d="M6 3.5v2.75l1.75 1.75" />
-                          </svg>
-                          {formatRelativeTime(task.createdAt)}
+                        <span className="home-task-item__badge home-task-item__badge--running">
+                          <span className="home-task-item__dot" />
+                          {task.progress}%
                         </span>
-                        {isFinal && task.endedAt > 0 && (
-                          <>
-                            <span className="task-row__sep">·</span>
-                            <span className="task-row__time">
-                              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                                <path d="M1 6.5h10M6.5 2l4 4.5-4 4.5" />
-                              </svg>
-                              {duration}
-                            </span>
-                          </>
-                        )}
-                      </div>
-
-                      {/* Error message for failed tasks */}
-                      {task.status === "error" && task.error && (
-                        <div className="task-row__error">{task.error}</div>
                       )}
-
-                      {/* Action buttons */}
-                      <div className="task-row__actions">
-                        {task.status === "generating" && (
-                          <button className="task-action task-action--cancel" onClick={() => cancelTask(task.id)}>
-                            Cancel
-                          </button>
-                        )}
-                        {isFinal && (
-                          <button className="task-action task-action--delete" onClick={() => deleteTask(task.id)}>
-                            Delete
-                          </button>
-                        )}
-                      </div>
+                      {task.status === "done" && (
+                        <a href={"/preview/" + task.id} target="_blank" rel="noopener" className="home-task-item__badge home-task-item__badge--done">
+                          Done
+                        </a>
+                      )}
+                      {task.status === "error" && (
+                        <span className="home-task-item__badge home-task-item__badge--error">Error</span>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-              {totalCount > 10 && (
-                <div className="task-panel__footer">
-                  <button className="task-panel__more" onClick={() => window.location.href = "/tasks"}>
-                    查看全部 {totalCount} 任务 →
-                  </button>
-                </div>
-              )}
-            </>
+                    {task.status === "generating" && (
+                      <div className="home-task-item__progress">
+                        <div className="home-task-item__progress-fill" style={{ width: `${task.progress}%` }} />
+                      </div>
+                    )}
+                    <div className="home-task-item__meta">
+                      <span>{formatRelativeTime(task.createdAt)}</span>
+                      {isFinal && task.endedAt > 0 && (
+                        <>
+                          <span className="home-task-item__sep">·</span>
+                          <span>{duration}</span>
+                        </>
+                      )}
+                    </div>
+                    {task.error && (
+                      <div className="home-task-item__error">{task.error}</div>
+                    )}
+                    <div className="home-task-item__actions">
+                      {task.status === "generating" && (
+                        <button className="home-task-item__action home-task-item__action--cancel" onClick={() => cancelTask(task.id)}>Cancel</button>
+                      )}
+                      {isFinal && (
+                        <button className="home-task-item__action home-task-item__action--delete" onClick={() => deleteTask(task.id)}>Delete</button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {totalCount > 10 && (
+            <div className="home-task-dropdown__foot">
+              <a href="/tasks" className="home-task-dropdown__foot-link">
+                查看全部 {totalCount} 任务 →
+              </a>
+            </div>
           )}
         </div>
+        </BorderBeam>
       )}
 
-      {/* ── Body ── */}
-      <div className="body">
-        {/* LEFT: Style picker */}
-        <aside className="style-col">
-          <div className="col-label">Choose a style</div>
-
-          <div className="style-grid">
-            {STYLE_PRESETS.map((style, i) => (
-              <button
-                key={style.id}
-                className={`scard ${selectedStyle === style.id ? "scard--on" : ""}`}
-                onClick={() => setSelectedStyle(style.id)}
-              >
-                {/* Thumbnail */}
-                <div className="scard__thumb">
-                  <StyleThumb style={style} n={i + 1} />
-                  {selectedStyle === style.id && (
-                    <div className="scard__check">
-                      <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="2,6 5,9 10,3" />
-                      </svg>
+      {/* ── Main layout ── */}
+      <div className="home-body">
+        {/* LEFT: Style grid */}
+        <aside className="home-style-panel">
+          <div className="home-section-label">Choose a style</div>
+          <div className="home-style-grid">
+            {STYLE_PRESETS.map((style, i) => {
+              const isSelected = selectedStyle === style.id;
+              return (
+                <BorderBeam key={style.id} size="md" colorVariant="ocean" strength={isSelected ? 0.45 : 0} duration={2.4} active={isSelected}>
+                  <button
+                    className={`home-style-card ${isSelected ? "home-style-card--selected" : ""}`}
+                    onClick={() => setSelectedStyle(style.id)}
+                  >
+                    <div className="home-style-card__thumb">
+                      <StyleThumb style={style} n={i + 1} />
+                      {isSelected && (
+                        <div className="home-style-card__check">
+                          <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="2,6 5,9 10,3" /></svg>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                {/* Info */}
-                <div className="scard__foot">
-                  <span className="scard__num">{String(i + 1).padStart(2, "0")}</span>
-                  <div className="scard__names">
-                    <span className="scard__cn">{style.nameCn}</span>
-                    <span className="scard__en">{style.name}</span>
-                  </div>
-                  <div className="scard__dots">
-                    <span className="dot" style={{ background: style.accent }} />
-                    <span className="dot" style={{ background: style.bg }} />
-                    <span className="dot" style={{ background: style.text }} />
-                  </div>
-                </div>
-              </button>
-            ))}
+                    <div className="home-style-card__footer">
+                      <span className="home-style-card__num">{String(i + 1).padStart(2, "0")}</span>
+                      <div className="home-style-card__info">
+                        <div className="home-style-card__name">{style.nameCn}</div>
+                        <div className="home-style-card__sub">{style.name}</div>
+                      </div>
+                      <div className="home-style-card__swatches">
+                        <span className="home-style-card__swatch" style={{ background: style.accent }} />
+                        <span className="home-style-card__swatch" style={{ background: style.bg, border: "1px solid rgba(255,255,255,0.1)" }} />
+                        <span className="home-style-card__swatch" style={{ background: style.text, border: "1px solid rgba(255,255,255,0.1)" }} />
+                      </div>
+                    </div>
+                  </button>
+                </BorderBeam>
+              );
+            })}
           </div>
         </aside>
 
-        {/* RIGHT: Input */}
-        <main className="input-col">
-          <div className="input-wrap">
-            {/* Section label */}
-            <div className="col-label">Create slides</div>
+        {/* RIGHT: Input form */}
+        <aside className="home-form-panel">
+          <div className="home-section-label">Create slides</div>
 
-            {/* Type toggle */}
-            <div className="toggle-row">
-              <button className={`tog ${inputType === "url" ? "tog--on" : ""}`} onClick={() => setInputType("url")}>URL</button>
-              <button className={`tog ${inputType === "text" ? "tog--on" : ""}`} onClick={() => setInputType("text")}>Text</button>
+          {/* Type toggle */}
+          <div className="home-toggle-group">
+            {(["url", "text"] as const).map((t) => (
+              <button
+                key={t}
+                className={`home-toggle-btn ${inputType === t ? "home-toggle-btn--active" : ""}`}
+                onClick={() => setInputType(t)}
+              >
+                {t === "url" ? "URL" : "Text"}
+              </button>
+            ))}
+          </div>
+
+          {/* Textarea */}
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={inputType === "url" ? "https://github.com/... — any URL" : "Paste your content here..."}
+            className="home-textarea"
+            rows={5}
+            onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleGenerate(); }}
+          />
+
+          {/* Task name */}
+          <input
+            type="text"
+            value={taskName}
+            onChange={(e) => setTaskName(e.target.value)}
+            placeholder="Task name (optional, auto-derived if empty)"
+            className="home-input"
+          />
+
+          {error && (
+            <div className="home-error">{error}</div>
+          )}
+
+          {/* Style chip */}
+          <div className="home-style-chip">
+            <div className="home-style-chip__preview" style={{ background: `linear-gradient(135deg, ${selectedPreset.accent}33, ${selectedPreset.text}22)` }} />
+            <span className="home-style-chip__name">{selectedPreset.nameCn}</span>
+            <span className="home-style-chip__sep">·</span>
+            <span className="home-style-chip__en">{selectedPreset.name}</span>
+            <div className="home-style-chip__swatches">
+              <span className="home-style-chip__swatch" style={{ background: selectedPreset.accent }} />
+              <span className="home-style-chip__swatch" style={{ background: selectedPreset.bg, border: "1px solid rgba(255,255,255,0.1)" }} />
+              <span className="home-style-chip__swatch" style={{ background: selectedPreset.text, border: "1px solid rgba(255,255,255,0.1)" }} />
             </div>
+          </div>
 
-            {/* Textarea */}
-            <textarea
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              placeholder={inputType === "url" ? "https://github.com/... — any URL" : "Paste your content here..."}
-              className="tarea"
-              rows={5}
-              onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleGenerate(); }}
-            />
-
-            {/* Task name (optional) */}
-            <input
-              type="text"
-              value={taskName}
-              onChange={e => setTaskName(e.target.value)}
-              placeholder="Task name (optional, auto-derived if empty)"
-              className="task-name-input"
-            />
-
-            {error && <div className="err-msg">{error}</div>}
-
-            {/* Style chip */}
-            <div className="style-chip">
-              <div className="style-chip__swatch" style={{ background: `linear-gradient(135deg, ${selectedPreset.accent}22, ${selectedPreset.text}11)` }} />
-              <span className="style-chip__name">{selectedPreset.nameCn}</span>
-              <span className="style-chip__sep">·</span>
-              <span className="style-chip__en">{selectedPreset.name}</span>
-              <div className="style-chip__dots">
-                <span className="dot dot--sm" style={{ background: selectedPreset.accent }} />
-                <span className="dot dot--sm" style={{ background: selectedPreset.bg, border: "1px solid rgba(0,0,0,0.1)" }} />
-                <span className="dot dot--sm" style={{ background: selectedPreset.text, border: "1px solid rgba(0,0,0,0.1)" }} />
-              </div>
+          {/* Aspect ratio */}
+          <div className="home-form-row">
+            <span className="home-form-label">尺寸</span>
+            <div className="home-form-group">
+              {ASPECT_RATIOS.map((r) => (
+                <button
+                  key={r.id}
+                  className={`home-form-pill ${aspectRatio === r.id ? "home-form-pill--active" : ""}`}
+                  onClick={() => setAspectRatio(r.id as "16:9" | "9:16")}
+                  title={r.hint}
+                >
+                  {r.name}
+                </button>
+              ))}
             </div>
+          </div>
 
-            {/* 尺寸选择 */}
-            <div className="options-row">
-              <span className="options-label">尺寸</span>
-              <div className="ratio-group">
-                {ASPECT_RATIOS.map(r => (
-                  <button
-                    key={r.id}
-                    className={`ratio ${aspectRatio === r.id ? "ratio--on" : ""}`}
-                    onClick={() => setAspectRatio(r.id as "16:9" | "9:16")}
-                    title={r.hint}
-                  >
-                    {r.name}
-                  </button>
-                ))}
-              </div>
+          {/* Subtitle speed */}
+          <div className="home-form-row">
+            <span className="home-form-label">字幕速度</span>
+            <div className="home-form-group">
+              {VIDEO_STYLES.map((s) => (
+                <button
+                  key={s.id}
+                  className={`home-form-pill ${videoStyle === s.id ? "home-form-pill--active" : ""}`}
+                  onClick={() => setVideoStyle(s.id)}
+                  title={s.hint}
+                >
+                  {s.nameCn}
+                </button>
+              ))}
             </div>
+          </div>
 
-            {/* 字幕速度 */}
-            <div className="video-style-row">
-              <span className="options-label">字幕速度</span>
-              <div className="video-style-group">
-                {VIDEO_STYLES.map(s => (
-                  <button
-                    key={s.id}
-                    className={`vstyle-btn ${videoStyle === s.id ? "vstyle-btn--on" : ""}`}
-                    onClick={() => setVideoStyle(s.id)}
-                    title={s.hint}
-                  >
-                    {s.nameCn}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Generate 按钮 — 单独一行 */}
-            <button onClick={handleGenerate} disabled={loading} className="gen-btn">
+          {/* Generate button */}
+          <BorderBeam size="line" colorVariant="ocean" strength={0.6} active={!loading}>
+            <button
+              onClick={handleGenerate}
+              disabled={loading}
+              className="home-generate-btn"
+            >
               {loading ? (
-                <><svg className="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" strokeLinecap="round"/></svg> Generating...</>
+                <>
+                  <svg className="home-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" /></svg>
+                  Generating...
+                </>
               ) : (
-                <><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0L14.59 8.41L23 11L14.59 13.59L12 22L9.41 13.59L1 11L9.41 8.41Z"></path></svg> Generate</>
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0L14.59 8.41L23 11L14.59 13.59L12 22L9.41 13.59L1 11L9.41 8.41Z" /></svg>
+                  Generate
+                </>
               )}
             </button>
+          </BorderBeam>
 
-            {loading && <p className="hint">Track progress in the Tasks panel ↑</p>}
+          {loading && (
+            <p className="home-hint">Track progress in the Tasks panel</p>
+          )}
+
+          {/* Recent tasks */}
+          <div className="home-recent">
+            <div className="home-section-label" style={{ marginBottom: "var(--space-3)" }}>Recent tasks</div>
+            {tasks.length === 0 ? (
+              <p className="home-recent__empty">No tasks yet</p>
+            ) : (
+              <div className="home-recent__list">
+                {tasks.slice(0, 5).map((task) => (
+                  <div key={task.id} className="home-recent__item">
+                    <span className="home-recent__id">{task.id.slice(0, 8)}</span>
+                    <span className="home-recent__name">{task.name || "Untitled"}</span>
+                    <span className="home-recent__status"
+                      style={{ color: task.status === "done" ? "#4a8a5a" : task.status === "error" ? "#c0453a" : "var(--text-muted)" }}>
+                      {task.status === "generating" ? `${task.progress}%` : task.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {totalCount > 5 && (
+              <a href="/tasks" className="home-recent__more">
+                View all {totalCount} →
+              </a>
+            )}
           </div>
-        </main>
+        </aside>
       </div>
 
       <style>{`
-        /* ── Reset ── */
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-        :root {
-          /* Warm editorial light palette */
-          --bg: #f4f1ec;
-          --bg2: #ede9e2;
-          --surface: #ffffff;
-          --surface2: #f9f7f4;
-          --border: rgba(0,0,0,0.08);
-          --border2: rgba(0,0,0,0.14);
-          --text: #1c1a17;
-          --text2: #6b6560;
-          --text3: #9a9490;
-          --accent: #b8844a;
-          --accent2: #d4a574;
-          --accent-dim: rgba(184,132,74,0.10);
-          --accent-glow: rgba(184,132,74,0.18);
-          --danger: #c0453a;
-          --success: #4a8a5a;
-          --font-body: 'DM Sans', 'Noto Sans SC', system-ui, sans-serif;
-          --font-display: 'Fraunces', Georgia, serif;
-          --font-mono: 'JetBrains Mono', monospace;
-          --radius: 12px;
-          --radius-sm: 7px;
-        }
-
-        html, body {
-          height: 100%;
-          background: var(--bg);
-          color: var(--text);
-          font-family: var(--font-body);
-          -webkit-font-smoothing: antialiased;
-          overflow: hidden;
-        }
-
-        /* ── Page ── */
-        .page {
+        /* ── Root ── */
+        .home-root {
           display: flex;
           flex-direction: column;
           height: 100vh;
           overflow: hidden;
+          background: var(--bg);
+          color: var(--text);
+          font-family: var(--font-body);
         }
 
         /* ── Header ── */
-        .header {
+        .home-header {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 0.85rem 2rem;
-          background: var(--surface);
+          padding: var(--space-3) var(--space-6);
           border-bottom: 1px solid var(--border);
+          background: var(--surface);
           flex-shrink: 0;
-          box-shadow: 0 1px 0 rgba(0,0,0,0.03);
         }
 
-        .header__left { display: flex; align-items: center; gap: 0.75rem; }
+        .home-header__brand {
+          display: flex;
+          align-items: center;
+          gap: var(--space-3);
+        }
 
-        .header__logo {
-          width: 36px; height: 36px;
+        .home-header__logo {
+          width: 36px;
+          height: 36px;
+          border-radius: var(--radius-md);
           background: var(--accent);
-          border-radius: 9px;
-          display: flex; align-items: center; justify-content: center;
+          color: var(--text);
           font-family: var(--font-display);
-          font-size: 17px; font-weight: 800;
-          color: #fff;
+          font-size: 1.125rem;
+          font-weight: 700;
           letter-spacing: -0.02em;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           flex-shrink: 0;
         }
 
-        .header__title {
-          font-size: 0.9rem; font-weight: 700;
+        .home-header__title {
+          font-size: 0.875rem;
+          font-weight: 700;
           color: var(--text);
           letter-spacing: -0.01em;
-          line-height: 1.2;
         }
 
-        .header__sub {
-          font-size: 0.65rem; color: var(--text3);
-          margin-top: 0.1rem;
+        .home-header__subtitle {
+          font-size: 0.7rem;
+          color: var(--text-muted);
+          margin-top: 0.05rem;
         }
 
-        .header__right { display: flex; align-items: center; gap: 1rem; }
-
-        .header__stats {
-          display: flex; align-items: baseline; gap: 0.25rem;
+        .home-header__meta {
+          display: flex;
+          align-items: center;
+          gap: var(--space-4);
         }
 
-        .header__stat-num {
+        .home-header__stat {
+          display: flex;
+          align-items: baseline;
+          gap: var(--space-1);
+        }
+
+        .home-header__stat-num {
           font-family: var(--font-display);
-          font-size: 1.1rem; font-weight: 700;
+          font-size: 1.1rem;
+          font-weight: 700;
           color: var(--accent);
         }
 
-        .header__stat-label {
-          font-size: 0.7rem; color: var(--text3);
+        .home-header__stat-label {
+          font-size: 0.7rem;
+          color: var(--text-muted);
         }
 
-        /* Task button */
-        .task-btn {
-          display: flex; align-items: center; gap: 0.4rem;
-          padding: 0.4rem 0.85rem;
-          background: var(--bg2);
-          border: 1px solid var(--border);
-          border-radius: 100px;
-          color: var(--text2);
+        .home-task-toggle {
+          display: flex;
+          align-items: center;
+          gap: var(--space-2);
+          padding: var(--space-2) var(--space-3);
+          border-radius: 9999px;
+          border: 1px solid;
           font-size: 0.75rem;
-          font-family: var(--font-body);
           font-weight: 500;
           cursor: pointer;
-          transition: all 0.15s;
+          transition: all var(--duration-normal) var(--ease-out);
+          font-family: var(--font-body);
         }
 
-        .task-btn:hover { border-color: var(--border2); color: var(--text); }
-        .task-btn--running { background: rgba(184,132,74,0.08); border-color: rgba(184,132,74,0.2); color: var(--accent); }
-        .task-btn--done { background: rgba(74,138,90,0.08); border-color: rgba(74,138,90,0.2); color: var(--success); }
-
-        .task-btn__dot {
-          width: 6px; height: 6px;
-          background: var(--text3);
+        .home-task-toggle__dot {
+          width: 6px;
+          height: 6px;
           border-radius: 50%;
+          flex-shrink: 0;
         }
 
-        .task-btn__dot--pulse {
-          background: var(--accent);
-          animation: pulse 1.5s ease-in-out infinite;
+        .home-task-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 199;
         }
 
-        @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
-
-        /* Task panel */
-        .task-panel {
+        .home-task-dropdown {
           position: fixed;
           top: 60px;
-          right: 2rem;
-          width: 280px;
+          right: var(--space-6);
+          width: 300px;
           background: var(--surface);
-          border: 1px solid var(--border);
-          border-radius: var(--radius);
-          box-shadow: 0 8px 32px rgba(0,0,0,0.10);
+          border: 2px solid transparent;
+          border-radius: var(--radius-lg);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
           z-index: 200;
           overflow: hidden;
+          animation: fadeUp 0.2s var(--ease-out);
         }
 
-        .task-panel__head {
-          display: flex; justify-content: space-between; align-items: center;
-          padding: 0.6rem 0.85rem;
-          font-size: 0.68rem; color: var(--text3);
+        .home-task-dropdown__head {
+          padding: var(--space-3) var(--space-4);
+          font-size: 0.65rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.12em;
+          color: var(--text-muted);
           border-bottom: 1px solid var(--border);
-          text-transform: uppercase; letter-spacing: 0.1em;
         }
 
-        .task-panel__clear {
-          background: none; border: none; color: var(--danger);
-          font-size: 0.68rem; cursor: pointer;
-          font-family: var(--font-body);
-          text-transform: uppercase; letter-spacing: 0.05em;
+        .home-task-dropdown__empty {
+          padding: var(--space-8);
+          text-align: center;
+          font-size: 0.8rem;
+          color: var(--text-muted);
         }
 
-        .task-panel__empty {
-          padding: 1.2rem; text-align: center;
-          font-size: 0.8rem; color: var(--text3);
-        }
-
-        .task-panel__list {
-          max-height: 420px;
+        .home-task-dropdown__list {
+          max-height: 384px;
           overflow-y: auto;
         }
 
-        .task-panel__footer {
-          padding: 0.6rem 0.85rem;
-          border-top: 1px solid var(--border);
-          text-align: center;
-        }
-
-        .task-panel__more {
-          background: none;
-          border: 1px solid var(--border);
-          border-radius: 6px;
-          padding: 0.5rem 1rem;
-          font-size: 0.8rem;
-          color: var(--accent2);
-          cursor: pointer;
-          width: 100%;
-        }
-
-        .task-panel__more:hover {
-          background: var(--hover);
-        }
-
-        .task-row {
-          padding: 0.55rem 0.85rem;
+        .home-task-item {
+          padding: var(--space-3) var(--space-4);
           border-bottom: 1px solid var(--border);
-          display: flex; flex-direction: column; gap: 0.25rem;
+          transition: background var(--duration-fast) var(--ease-out);
         }
 
-        .task-row:last-child { border-bottom: none; }
-        .task-row--generating { background: rgba(184,132,74,0.04); }
-        .task-row--done { background: rgba(74,138,90,0.03); }
-        .task-row--error { background: rgba(192,69,58,0.04); }
-        .task-row--cancelled { background: rgba(107,101,96,0.04); }
-
-        .task-row__top {
-          display: flex; justify-content: space-between; align-items: flex-start;
-          gap: 0.4rem;
+        .home-task-item:last-child {
+          border-bottom: none;
         }
 
-        .task-row__name {
-          font-size: 0.72rem; font-weight: 600; color: var(--text);
-          flex: 1; min-width: 0;
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-          line-height: 1.3;
+        .home-task-item__row {
+          display: flex;
+          align-items: center;
+          gap: var(--space-2);
         }
 
-        .task-row__id {
+        .home-task-item__id {
           font-family: var(--font-mono);
-          font-size: 0.65rem;
-          color: var(--text3);
-          font-weight: 700;
-          background: var(--bg2);
-          padding: 1px 4px;
+          font-size: 0.6rem;
+          padding: 0.125rem 0.375rem;
           border-radius: 4px;
-          margin-right: 2px;
+          background: var(--surface-2);
+          color: var(--text-muted);
+          flex-shrink: 0;
         }
 
-        .task-row__badges { display: flex; gap: 0.3rem; flex-shrink: 0; align-items: center; }
-
-        .badge {
-          display: inline-flex; align-items: center; gap: 0.2rem;
-          padding: 0.15rem 0.4rem;
-          border-radius: 100px;
-          font-size: 0.6rem; font-weight: 600;
-          text-decoration: none;
+        .home-task-item__name {
+          flex: 1;
+          min-width: 0;
+          font-size: 0.8rem;
+          font-weight: 600;
+          color: var(--text);
           white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
-        .badge--running { background: rgba(184,132,74,0.12); color: var(--accent); }
-        .badge__dot {
-          width: 5px; height: 5px; border-radius: 50%;
+        .home-task-item__badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+          padding: 0.125rem 0.5rem;
+          border-radius: 9999px;
+          font-size: 0.6rem;
+          font-weight: 600;
+          flex-shrink: 0;
+          text-decoration: none;
+        }
+
+        .home-task-item__badge--running {
+          background: rgba(212,165,116,0.12);
+          color: var(--accent);
+        }
+
+        .home-task-item__dot {
+          width: 4px;
+          height: 4px;
+          border-radius: 50%;
           background: var(--accent);
           animation: pulse 1.5s ease-in-out infinite;
         }
-        .badge--done { background: rgba(74,138,90,0.12); color: var(--success); }
-        .badge--video { background: rgba(184,132,74,0.12); color: var(--accent); }
-        .badge--error { background: rgba(192,69,58,0.12); color: var(--danger); }
-        .badge--cancelled { background: rgba(107,101,96,0.10); color: var(--text3); }
 
-        .task-row__bar {
-          height: 3px; background: var(--border);
-          border-radius: 4px; overflow: hidden;
-          margin: 2px 0;
+        .home-task-item__badge--done {
+          background: rgba(74,138,90,0.12);
+          color: #4a8a5a;
         }
 
-        .task-row__bar div {
-          height: 100%; background: var(--accent);
-          transition: width 0.4s cubic-bezier(0.1, 0.7, 0.1, 1);
-          background-image: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-          background-size: 200% 100%;
-          animation: bar-shine 2s linear infinite;
+        .home-task-item__badge--error {
+          background: rgba(192,69,58,0.12);
+          color: #c0453a;
         }
 
-        @keyframes bar-shine {
-          from { background-position: 200% 0; }
-          to { background-position: -200% 0; }
+        .home-task-item__progress {
+          height: 2px;
+          background: var(--border);
+          border-radius: 1px;
+          margin-top: var(--space-2);
+          overflow: hidden;
         }
 
-        .task-row__step {
-          font-size: 0.68rem; color: var(--text2); line-height: 1.4;
-          display: flex; align-items: center; gap: 6px;
-          flex-wrap: wrap;
-        }
-
-        .task-row__step--active {
-          color: var(--accent);
-          font-weight: 500;
-          animation: step-fade 2s ease-in-out infinite;
-        }
-
-        @keyframes step-fade {
-          0%, 100% { opacity: 0.7; }
-          50% { opacity: 1; }
-        }
-
-        .task-row__skill-tag {
-          font-family: var(--font-mono);
-          font-size: 0.58rem;
-          text-transform: uppercase;
+        .home-task-item__progress-fill {
+          height: 100%;
           background: var(--accent);
-          color: #fff;
-          padding: 1px 5px;
-          border-radius: 3px;
-          letter-spacing: 0.05em;
-          flex-shrink: 0;
+          border-radius: 1px;
+          transition: width 0.5s var(--ease-out);
         }
 
-        .task-row__times {
-          display: flex; align-items: center; gap: 0.3rem;
-        }
-
-        .task-row__time {
-          display: inline-flex; align-items: center; gap: 0.2rem;
-          font-size: 0.6rem; color: var(--text3);
-        }
-
-        .task-row__sep { font-size: 0.6rem; color: var(--text3); }
-
-        .task-row__error {
-          font-size: 0.65rem; color: var(--danger);
-          background: rgba(192,69,58,0.06);
-          border: 1px solid rgba(192,69,58,0.12);
-          border-radius: var(--radius-sm);
-          padding: 0.3rem 0.5rem;
-          line-height: 1.4;
-          margin-top: 0.1rem;
-          max-height: 4.5em; overflow-y: auto;
-          word-break: break-all;
-        }
-
-        .task-row__actions {
-          display: flex; gap: 0.3rem; margin-top: 0.1rem;
-        }
-
-        .task-action {
-          padding: 0.2rem 0.55rem;
-          border-radius: 100px;
-          font-size: 0.62rem; font-weight: 500;
-          font-family: var(--font-body);
-          cursor: pointer; border: 1px solid;
-          transition: all 0.15s;
-        }
-
-        .task-action--cancel {
-          background: rgba(184,132,74,0.06); border-color: rgba(184,132,74,0.18);
-          color: var(--accent);
-        }
-        .task-action--cancel:hover { background: rgba(184,132,74,0.12); }
-
-        .task-action--delete {
-          background: rgba(192,69,58,0.06); border-color: rgba(192,69,58,0.15);
-          color: var(--danger);
-        }
-        .task-action--delete:hover { background: rgba(192,69,58,0.12); }
-
-        /* ── Body ── */
-        .body {
-          display: grid;
-          grid-template-columns: 1fr 380px;
-          flex: 1;
-          overflow: hidden;
-        }
-
-        /* ── Style column ── */
-        .style-col {
-          border-right: 1px solid var(--border);
-          padding: 1.5rem 1.75rem;
-          overflow-y: auto;
-          background: var(--bg);
-        }
-
-        .col-label {
-          font-size: 0.68rem;
-          color: var(--text3);
-          text-transform: uppercase;
-          letter-spacing: 0.12em;
-          font-weight: 600;
-          margin-bottom: 1rem;
-        }
-
-        .style-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-          gap: 0.65rem;
-        }
-
-        /* Style card */
-        .scard {
-          background: var(--surface);
-          border: 1.5px solid var(--border);
-          border-radius: var(--radius);
-          overflow: hidden;
-          cursor: pointer;
-          transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-          text-align: left;
-          position: relative;
-          display: flex;
-          flex-direction: column;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-        }
-
-        .scard:hover {
-          border-color: var(--border2);
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(0,0,0,0.08);
-        }
-
-        .scard--on {
-          border-color: var(--accent);
-          box-shadow: 0 0 0 2px var(--accent-dim), 0 4px 16px rgba(184,132,74,0.12);
-        }
-
-        .scard__thumb {
-          height: 100px;
-          overflow: hidden;
-          position: relative;
-          flex-shrink: 0;
-        }
-
-        .scard__check {
-          position: absolute;
-          top: 5px; right: 5px;
-          width: 18px; height: 18px;
-          background: var(--accent);
-          border-radius: 50%;
-          display: flex; align-items: center; justify-content: center;
-        }
-
-        .scard__foot {
-          padding: 0.5rem 0.6rem;
+        .home-task-item__meta {
           display: flex;
           align-items: center;
-          gap: 0.4rem;
-          border-top: 1px solid var(--border);
-          background: var(--surface2);
+          gap: var(--space-2);
+          margin-top: var(--space-1);
+          font-size: 0.7rem;
+          color: var(--text-muted);
         }
 
-        .scard__num {
+        .home-task-item__sep {
+          color: var(--border-hover);
+        }
+
+        .home-task-item__error {
+          margin-top: var(--space-2);
+          font-size: 0.65rem;
+          padding: var(--space-2);
+          border-radius: var(--radius-sm);
+          background: rgba(192,69,58,0.06);
+          color: #c0453a;
+        }
+
+        .home-task-item__actions {
+          display: flex;
+          gap: var(--space-2);
+          margin-top: var(--space-2);
+        }
+
+        .home-task-item__action {
           font-size: 0.6rem;
-          color: var(--text3);
-          font-family: var(--font-mono);
+          padding: 0.125rem 0.5rem;
+          border-radius: 9999px;
+          border: 1px solid;
+          cursor: pointer;
+          font-family: var(--font-body);
+          transition: all var(--duration-fast) var(--ease-out);
+        }
+
+        .home-task-item__action--cancel {
+          border-color: rgba(212,165,116,0.18);
+          color: var(--accent);
+          background: rgba(212,165,116,0.06);
+        }
+
+        .home-task-item__action--cancel:hover {
+          border-color: rgba(212,165,116,0.4);
+        }
+
+        .home-task-item__action--delete {
+          border-color: rgba(192,69,58,0.15);
+          color: #c0453a;
+          background: rgba(192,69,58,0.06);
+        }
+
+        .home-task-item__action--delete:hover {
+          border-color: rgba(192,69,58,0.35);
+        }
+
+        .home-task-dropdown__foot {
+          padding: var(--space-3) var(--space-4);
+          border-top: 1px solid var(--border);
+        }
+
+        .home-task-dropdown__foot-link {
+          display: block;
+          text-align: center;
+          font-size: 0.72rem;
+          padding: var(--space-2) var(--space-3);
+          border-radius: var(--radius-md);
+          border: 1px solid var(--border);
+          color: var(--accent);
+          text-decoration: none;
+          transition: all var(--duration-fast) var(--ease-out);
+        }
+
+        .home-task-dropdown__foot-link:hover {
+          border-color: var(--border-hover);
+          background: var(--accent-dim);
+        }
+
+        /* ── Body ── */
+        .home-body {
+          display: flex;
+          flex: 1;
+          overflow: hidden;
+        }
+
+        /* ── Style panel ── */
+        .home-style-panel {
+          flex: 1;
+          overflow-y: auto;
+          padding: var(--space-6);
+          border-right: 1px solid var(--border);
+        }
+
+        .home-section-label {
+          font-size: 0.65rem;
           font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.15em;
+          color: var(--text-muted);
+          margin-bottom: var(--space-4);
+        }
+
+        .home-style-grid {
+          display: grid;
+          gap: var(--space-4);
+          grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        }
+
+        .home-style-card {
+          border-radius: var(--radius-lg);
+          border: 2px solid var(--border);
+          background: var(--surface);
+          overflow: hidden;
+          cursor: pointer;
+          text-align: left;
+          transition: border-color var(--duration-normal) var(--ease-out), box-shadow var(--duration-normal) var(--ease-out), transform var(--duration-normal) var(--ease-out);
+          font-family: var(--font-body);
+        }
+
+        .home-style-card:hover {
+          border-color: var(--border-hover);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        }
+
+        .home-style-card--selected {
+          /* BorderBeam handles the glow — card stays clean */
+          border-color: var(--border-hover);
+        }
+
+        .home-style-card__thumb {
+          height: 96px;
+          overflow: hidden;
+          position: relative;
+        }
+
+        .home-style-card__check {
+          position: absolute;
+          top: var(--space-2);
+          right: var(--space-2);
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          background: var(--accent);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .home-style-card__footer {
+          display: flex;
+          align-items: center;
+          gap: var(--space-2);
+          padding: var(--space-3);
+          border-top: 1px solid var(--border);
+          background: var(--surface-2);
+        }
+
+        .home-style-card__num {
+          font-family: var(--font-mono);
+          font-size: 0.6rem;
+          font-weight: 600;
+          color: var(--text-muted);
           flex-shrink: 0;
         }
 
-        .scard__names {
+        .home-style-card__info {
           flex: 1;
           min-width: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 0.05rem;
         }
 
-        .scard__cn {
-          font-size: 0.7rem;
-          color: var(--text);
+        .home-style-card__name {
+          font-size: 0.75rem;
           font-weight: 600;
+          color: var(--text);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
           line-height: 1.2;
         }
 
-        .scard__en {
+        .home-style-card__sub {
           font-size: 0.58rem;
-          color: var(--text3);
+          color: var(--text-muted);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
 
-        .scard__dots {
+        .home-style-card__swatches {
           display: flex;
-          gap: 0.22rem;
+          gap: 3px;
           flex-shrink: 0;
         }
 
-        /* ── Input column ── */
-        .input-col {
-          background: var(--surface);
-          padding: 1.5rem 1.75rem;
+        .home-style-card__swatch {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+        }
+
+        /* ── Form panel ── */
+        .home-form-panel {
+          width: 384px;
+          flex-shrink: 0;
           overflow-y: auto;
-          display: flex;
-          flex-direction: column;
+          padding: var(--space-6);
+          background: var(--surface);
         }
 
-        .input-wrap {
+        .home-toggle-group {
           display: flex;
-          flex-direction: column;
-          gap: 1rem;
+          gap: var(--space-2);
+          margin-bottom: var(--space-3);
         }
 
-        /* Toggle buttons */
-        .toggle-row {
-          display: flex;
-          gap: 0.4rem;
-        }
-
-        .tog {
+        .home-toggle-btn {
           flex: 1;
-          padding: 0.5rem;
-          background: var(--bg2);
-          border: 1.5px solid var(--border);
-          border-radius: var(--radius-sm);
-          color: var(--text2);
-          font-size: 0.82rem;
-          font-family: var(--font-body);
-          cursor: pointer;
-          transition: all 0.15s;
+          padding: var(--space-3) 0;
+          border-radius: var(--radius-md);
+          border: 2px solid var(--border);
+          background: var(--surface-2);
+          color: var(--text-muted);
+          font-size: 0.8rem;
           font-weight: 500;
+          cursor: pointer;
+          transition: all var(--duration-fast) var(--ease-out);
+          font-family: var(--font-body);
         }
 
-        .tog:hover { border-color: var(--border2); color: var(--text); }
-        .tog--on { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+        .home-toggle-btn--active {
+          border-color: var(--accent) !important;
+          background: rgba(212, 165, 116, 0.10) !important;
+          color: var(--accent) !important;
+        }
 
-        /* Textarea */
-        .tarea {
-          width: 100%;
-          padding: 0.8rem 1rem;
-          background: var(--bg2);
-          border: 1.5px solid var(--border);
-          border-radius: var(--radius);
+        .home-toggle-btn:hover:not(.home-toggle-btn--active) {
+          border-color: var(--border-hover);
           color: var(--text);
-          font-size: 0.88rem;
+        }
+
+        .home-textarea {
+          width: 100%;
+          border-radius: var(--radius-lg);
+          border: 2px solid var(--border);
+          background: var(--surface-2);
+          color: var(--text);
+          padding: var(--space-4);
+          font-size: 0.875rem;
           font-family: var(--font-body);
+          line-height: 1.6;
           resize: none;
           outline: none;
-          transition: border-color 0.15s, box-shadow 0.15s;
-          line-height: 1.65;
+          transition: border-color var(--duration-fast) var(--ease-out);
+          margin-bottom: var(--space-3);
         }
 
-        .tarea::placeholder { color: var(--text3); }
-        .tarea:focus {
-          border-color: var(--accent);
-          box-shadow: 0 0 0 3px var(--accent-dim);
+        .home-textarea:focus {
+          border-color: var(--border-hover);
         }
 
-        .task-name-input {
+        .home-textarea::placeholder {
+          color: var(--text-dim);
+        }
+
+        .home-input {
           width: 100%;
-          padding: 0.5rem 0.85rem;
-          background: var(--bg2);
-          border: 1.5px solid var(--border);
-          border-radius: var(--radius-sm);
+          border-radius: var(--radius-lg);
+          border: 2px solid var(--border);
+          background: var(--surface-2);
           color: var(--text);
-          font-size: 0.78rem;
+          padding: var(--space-3) var(--space-4);
+          font-size: 0.875rem;
           font-family: var(--font-body);
           outline: none;
-          transition: border-color 0.15s, box-shadow 0.15s;
+          transition: border-color var(--duration-fast) var(--ease-out);
+          margin-bottom: var(--space-3);
         }
 
-        .task-name-input::placeholder { color: var(--text3); }
-        .task-name-input:focus {
-          border-color: var(--accent);
-          box-shadow: 0 0 0 3px var(--accent-dim);
+        .home-input:focus {
+          border-color: var(--border-hover);
         }
 
-        /* Error */
-        .err-msg {
-          font-size: 0.76rem;
-          color: var(--danger);
-          padding: 0.5rem 0.75rem;
+        .home-input::placeholder {
+          color: var(--text-dim);
+        }
+
+        .home-error {
+          font-size: 0.75rem;
+          padding: var(--space-3);
+          border-radius: var(--radius-lg);
+          margin-bottom: var(--space-3);
           background: rgba(192,69,58,0.06);
           border: 1px solid rgba(192,69,58,0.14);
-          border-radius: var(--radius-sm);
+          color: #c0453a;
         }
 
-        /* Style chip */
-        .style-chip {
+        .home-style-chip {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
-          padding: 0.55rem 0.85rem;
-          background: var(--bg2);
-          border: 1.5px solid var(--border);
-          border-radius: var(--radius-sm);
+          gap: var(--space-2);
+          padding: var(--space-3);
+          border-radius: var(--radius-lg);
+          border: 2px solid var(--border);
+          background: var(--surface-2);
+          margin-bottom: var(--space-3);
         }
 
-        .style-chip__swatch {
-          width: 22px; height: 22px;
-          border-radius: 5px;
+        .home-style-chip__preview {
+          width: 24px;
+          height: 24px;
+          border-radius: var(--radius-sm);
           flex-shrink: 0;
         }
 
-        .style-chip__name {
-          font-size: 0.78rem;
-          color: var(--text);
+        .home-style-chip__name {
+          font-size: 0.875rem;
           font-weight: 600;
+          color: var(--text);
+          white-space: nowrap;
         }
 
-        .style-chip__sep { color: var(--text3); font-size: 0.75rem; }
+        .home-style-chip__sep {
+          font-size: 0.875rem;
+          color: var(--text-muted);
+        }
 
-        .style-chip__en {
+        .home-style-chip__en {
+          font-size: 0.875rem;
+          color: var(--text-muted);
+          flex: 1;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .home-style-chip__swatches {
+          display: flex;
+          gap: 3px;
+          flex-shrink: 0;
+        }
+
+        .home-style-chip__swatch {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+        }
+
+        .home-form-row {
+          display: flex;
+          align-items: center;
+          gap: var(--space-3);
+          margin-bottom: var(--space-3);
+        }
+
+        .home-form-label {
           font-size: 0.75rem;
-          color: var(--text2);
+          font-weight: 500;
+          color: var(--text-muted);
+          min-width: 3rem;
+          flex-shrink: 0;
+        }
+
+        .home-form-group {
+          display: flex;
+          gap: var(--space-2);
           flex: 1;
         }
 
-        .style-chip__dots {
-          display: flex;
-          gap: 0.3rem;
-          align-items: center;
-        }
-
-/* Options rows */
-        .options-row, .video-style-row {
-          display: flex;
-          align-items: center;
-          gap: 0.6rem;
-        }
-
-.options-label {
+        .home-form-pill {
+          flex: 1;
+          padding: var(--space-2) 0;
+          border-radius: var(--radius-md);
+          border: 2px solid var(--border);
+          background: var(--surface-2);
+          color: var(--text-muted);
           font-size: 0.72rem;
-          color: var(--text2);
           font-weight: 500;
-          white-space: nowrap;
-          min-width: 3.5rem;
-        }
-
-        .ratio-group { display: flex; gap: 0.3rem; }
-
-        .ratio {
-          padding: 0.45rem 0.8rem;
-          background: var(--bg2);
-          border: 1.5px solid var(--border);
-          border-radius: var(--radius-sm);
-          color: var(--text2);
-          font-size: 0.75rem;
-          font-family: var(--font-body);
           cursor: pointer;
-          transition: all 0.15s;
-          font-weight: 500;
-          white-space: nowrap;
-        }
-
-        .ratio:hover { border-color: var(--border2); color: var(--text); }
-        .ratio--on { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
-
-        .vstyle-btn {
-          flex: 1; padding: 0.25rem 0.6rem;
-          background: var(--bg2); border: 1.5px solid var(--border);
-          border-radius: var(--radius-sm);
-          color: var(--text2); font-size: 0.68rem; font-weight: 500;
+          transition: all var(--duration-fast) var(--ease-out);
           font-family: var(--font-body);
-          cursor: pointer; transition: all 0.15s;
-          white-space: nowrap;
-        }
-        .vstyle-btn:hover { border-color: var(--border2); color: var(--text); }
-        .vstyle-btn--on { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
-
-        .video-style-group {
-          display: flex;
-          gap: 0.3rem;
-          flex: 1;
         }
 
-        .gen-btn {
+        .home-form-pill--active {
+          border-color: var(--accent) !important;
+          background: rgba(212, 165, 116, 0.10) !important;
+          color: var(--accent) !important;
+        }
+
+        .home-form-pill:hover:not(.home-form-pill--active) {
+          border-color: var(--border-hover);
+          color: var(--text);
+        }
+
+        .home-generate-btn {
           width: 100%;
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 0.5rem;
-          padding: 0.85rem 1.2rem;
+          gap: var(--space-2);
+          padding: var(--space-4) 0;
+          border-radius: var(--radius-lg);
           background: var(--accent);
-          border: none;
-          border-radius: var(--radius);
-          color: #fff;
-          font-size: 0.92rem;
+          color: var(--text);
+          font-size: 0.875rem;
           font-weight: 700;
           font-family: var(--font-body);
           cursor: pointer;
-          transition: all 0.2s;
-          letter-spacing: 0.01em;
-          box-shadow: 0 2px 8px rgba(184,132,74,0.25);
+          border: 2px solid transparent;
+          transition: all var(--duration-normal) var(--ease-out);
+          box-shadow: 0 2px 8px rgba(196, 133, 58, 0.15);
+          margin-bottom: var(--space-2);
         }
 
-        .gen-btn:hover:not(:disabled) {
-          background: var(--accent2);
+        .home-generate-btn:hover:not(:disabled) {
+          background: var(--accent-light);
           transform: translateY(-1px);
-          box-shadow: 0 5px 16px rgba(184,132,74,0.3);
+          box-shadow: 0 4px 16px rgba(196, 133, 58, 0.25);
         }
 
-        .gen-btn:active:not(:disabled) { transform: translateY(0); }
-        .gen-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+        .home-generate-btn:hover:not(:disabled) {
+          background: var(--accent-light);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 16px rgba(212, 165, 116, 0.35);
+        }
 
-        .hint {
-          font-size: 0.7rem;
-          color: var(--text3);
+        .home-generate-btn:active:not(:disabled) {
+          transform: translateY(0);
+        }
+
+        .home-generate-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .home-hint {
           text-align: center;
-          margin: 0;
+          font-size: 0.72rem;
+          color: var(--text-muted);
+          margin-bottom: var(--space-6);
         }
 
-        /* Dots */
-        .dot {
-          width: 9px; height: 9px;
-          border-radius: 50%;
-          display: inline-block;
+        .home-recent {
+          padding-top: var(--space-6);
+          border-top: 1px solid var(--border);
+        }
+
+        .home-recent__empty {
+          font-size: 0.72rem;
+          color: var(--text-dim);
+        }
+
+        .home-recent__list {
+          display: flex;
+          flex-direction: column;
+          gap: var(--space-2);
+        }
+
+        .home-recent__item {
+          display: flex;
+          align-items: center;
+          gap: var(--space-2);
+          padding: var(--space-2);
+          border-radius: var(--radius-md);
+          background: var(--surface-2);
+        }
+
+        .home-recent__id {
+          font-family: var(--font-mono);
+          font-size: 0.58rem;
+          color: var(--text-muted);
           flex-shrink: 0;
         }
 
-        .dot--sm { width: 10px; height: 10px; }
+        .home-recent__name {
+          flex: 1;
+          min-width: 0;
+          font-size: 0.75rem;
+          color: var(--text);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
 
-        /* Spinner */
-        .spin { animation: spin 0.7s linear infinite; }
+        .home-recent__status {
+          font-size: 0.72rem;
+          flex-shrink: 0;
+        }
+
+        .home-recent__more {
+          display: block;
+          text-align: center;
+          font-size: 0.72rem;
+          padding: var(--space-2);
+          border-radius: var(--radius-md);
+          border: 1px solid var(--border);
+          color: var(--accent);
+          text-decoration: none;
+          margin-top: var(--space-2);
+          transition: all var(--duration-fast) var(--ease-out);
+        }
+
+        .home-recent__more:hover {
+          border-color: var(--border-hover);
+          background: var(--accent-dim);
+        }
+
+        /* ── Spinner ── */
+        .home-spin {
+          animation: spin 0.7s linear infinite;
+        }
+
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+          .home-body {
+            flex-direction: column;
+          }
 
-        /* Selection */
-        ::selection { background: var(--accent-dim); color: var(--text); }
+          .home-style-panel {
+            border-right: none;
+            border-bottom: 1px solid var(--border);
+            max-height: 50vh;
+          }
 
-        /* Responsive */
-        @media (max-width: 900px) {
-          html, body { overflow: auto; }
-          .body { grid-template-columns: 1fr; }
-          .style-col { border-right: none; border-bottom: 1px solid var(--border); }
-          .input-col { padding-bottom: 3rem; }
-          .style-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+          .home-form-panel {
+            width: 100%;
+            flex-shrink: 0;
+          }
+
+          .home-style-grid {
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+          }
         }
       `}</style>
     </div>
   );
 }
 
-/* ── Mini preview thumbnails (CSS-only) ── */
 function StyleThumb({ style, n }: { style: typeof STYLE_PRESETS[0]; n: number }) {
   const id = String(n).padStart(2, "0");
-  const c = (hex: string) => hex;
-
   const previews: Record<string, React.ReactNode> = {
     "bold-signal": (
       <div style={{ background: "linear-gradient(135deg, #1a1a1a, #2d2d2d, #1a1a1a)", width: "100%", height: "100%", position: "relative", overflow: "hidden" }}>

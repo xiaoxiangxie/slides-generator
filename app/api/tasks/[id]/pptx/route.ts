@@ -103,23 +103,16 @@ export async function GET(
         color: "FFFFFF",
       });
 
-      // Common addText options for content items
-      const contentTextOpts = {
-        x: 0.5,
-        y: 1.4,
-        w: "90%",
-        h: 3.5,
-        color: "E0E0E0",
-        valign: "top" as const,
-      };
-
       // Add bullet points
       if (slideData.points && slideData.points.length > 0) {
         const bulletItems = slideData.points.map((point) => ({
           text: point,
           options: { bullet: true, breakLine: true },
         }));
-        slide.addText(bulletItems, { ...contentTextOpts, fontSize: 18 });
+        slide.addText(bulletItems, {
+          x: 0.5, y: 1.4, w: "90%", h: 3.5,
+          color: "E0E0E0", valign: "top", fontSize: 18,
+        } as any);
       }
 
       // Add summary cards if present
@@ -128,7 +121,10 @@ export async function GET(
           text: `${card.label}: ${card.value}`,
           options: { bullet: true, breakLine: true },
         }));
-        slide.addText(cardTexts, { ...contentTextOpts, fontSize: 16 });
+        slide.addText(cardTexts, {
+          x: 0.5, y: 1.4, w: "90%", h: 3.5,
+          color: "E0E0E0", valign: "top", fontSize: 16,
+        } as any);
       }
     }
 
@@ -144,9 +140,9 @@ export async function GET(
   await mkdir(outputDir, { recursive: true });
 
   const outputPath = path.join(outputDir, `${id}.pptx`);
-  const blob = await pptx.write();
-  const arrayBuffer = await blob.arrayBuffer();
-  await writeFile(outputPath, Buffer.from(arrayBuffer));
+  const result = await pptx.write();
+  const buffer = result instanceof Blob ? await result.arrayBuffer() : result;
+  await writeFile(outputPath, Buffer.from(buffer as ArrayBuffer));
 
   return NextResponse.json({ url: `/output/${dateStr}/${id}/${id}.pptx` });
 }

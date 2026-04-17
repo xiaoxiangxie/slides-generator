@@ -2,6 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
+import { BorderBeam } from "border-beam";
 
 interface GenerationState {
   status: "loading" | "done" | "error";
@@ -270,16 +271,18 @@ export default function PreviewPage() {
 
       {/* Action bar */}
       {state.status === "done" && showHtml && (
-        <div className="action-bar">
-          <a href={showHtml} download className="action-btn action-btn--primary">
-            <DownloadIcon />
-            Download HTML
-          </a>
-          <button onClick={() => router.push("/")} className="action-btn action-btn--ghost">
-            <PlusIcon />
-            New Slide
-          </button>
-        </div>
+        <BorderBeam size="line" colorVariant="ocean" strength={0.5}>
+          <div className="action-bar">
+            <a href={showHtml} download className="action-btn action-btn--primary">
+              <DownloadIcon />
+              Download HTML
+            </a>
+            <button onClick={() => router.push("/")} className="action-btn action-btn--ghost">
+              <PlusIcon />
+              New Slide
+            </button>
+          </div>
+        </BorderBeam>
       )}
 
       <style>{`
@@ -617,7 +620,7 @@ export default function PreviewPage() {
           justify-content: center;
           color: var(--success);
           margin-bottom: 0.5rem;
-          animation: done-pop 0.5s var(--ease-spring);
+          animation: done-pop 0.5s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         @keyframes done-pop {
@@ -660,6 +663,12 @@ export default function PreviewPage() {
           gap: 0.6rem;
           z-index: 300;
           animation: fadeUp 0.5s var(--ease-out) 0.3s both;
+          border: 2px solid transparent;
+          border-radius: var(--radius-lg);
+          background: var(--surface);
+          box-shadow: 0 4px 24px rgba(42, 37, 32, 0.12);
+          backdrop-filter: blur(12px);
+          padding: 0.25rem;
         }
 
         .action-btn {
@@ -679,7 +688,7 @@ export default function PreviewPage() {
 
         .action-btn--primary {
           background: var(--accent);
-          color: #0d0d0d;
+          color: var(--text);
           border-color: var(--accent);
         }
 
