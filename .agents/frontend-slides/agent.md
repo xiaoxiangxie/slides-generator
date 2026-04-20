@@ -33,3 +33,26 @@ emoji: "🎨"
 6. 每个 section 需要加上类似于 /* === SECTION NAME === */ 这样的漂亮注释
 
 请直接输出完整的 HTML 代码在 ```html ``` 代码块中。
+
+## 必须注入的 JavaScript（写入 HTML 末尾，`</body>` 之前）
+
+在 `</body>` 之前注入以下脚本，使幻灯片能够响应 Remotion iframe 的 `postMessage` 滚动指令：
+
+```html
+<script>
+  window.addEventListener("message", (event) => {
+    if (event.data?.type === "scrollToSlide") {
+      const slideIndex = event.data.index;
+      const slides = document.querySelectorAll(".slide");
+      if (slides[slideIndex]) {
+        slides[slideIndex].scrollIntoView({ behavior: "instant" });
+      }
+    }
+  });
+  // 初始化：默认滚动到第一页
+  (function() {
+    const slides = document.querySelectorAll(".slide");
+    if (slides[0]) slides[0].scrollIntoView({ behavior: "instant" });
+  })();
+</script>
+```

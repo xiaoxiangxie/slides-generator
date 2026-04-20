@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { type TaskRecord } from "@/lib/task-store";
 
 const PAGE_SIZE = 10;
@@ -229,7 +229,9 @@ function SrtPreview({ jobId }: { jobId: string }) {
   );
 
   return (
-    <iframe srcDoc={html} className="tp-srt-iframe" title="subtitle preview" sandbox="allow-scripts" />
+    <div style={{ width: "100%", height: "100%" }}>
+      <iframe srcDoc={html} className="tp-srt-iframe" title="subtitle preview" sandbox="allow-scripts" />
+    </div>
   );
 }
 
@@ -243,6 +245,26 @@ export default function TasksPage() {
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"html" | "video" | "srt">("html");
+  const [previewAspect, setPreviewAspect] = useState<"16:9" | "9:16">("16:9");
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const [iframeSize, setIframeSize] = useState({ width: "100%", height: "100%" });
+
+  useEffect(() => {
+    if (previewAspect !== "9:16") {
+      setIframeSize({ width: "100%", height: "100%" });
+      return;
+    }
+    const update = () => {
+      if (!previewContainerRef.current) return;
+      const containerH = previewContainerRef.current.clientHeight;
+      const w = Math.min(containerH * (9 / 16), previewContainerRef.current.clientWidth);
+      setIframeSize({ width: `${w}px`, height: `${containerH}px` });
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    if (previewContainerRef.current) ro.observe(previewContainerRef.current);
+    return () => ro.disconnect();
+  }, [previewAspect]);
   const [toast, setToast] = useState<string | null>(null);
 
   const [filterInput, setFilterInput] = useState<FilterInput>("all");
@@ -456,15 +478,38 @@ export default function TasksPage() {
                 )}
               </div>
 
+              <div className="tp-preview__aspect-toggle">
+                <button
+                  className={`tp-preview__aspect-btn ${previewAspect === "16:9" ? "tp-preview__aspect-btn--active" : ""}`}
+                  onClick={() => setPreviewAspect("16:9")}
+                  title="宽屏 16:9"
+                >
+                  <svg width="14" height="10" viewBox="0 0 14 10" fill="none" stroke="currentColor" strokeWidth="1.2">
+                    <rect x="0" y="0" width="14" height="10" rx="1"/>
+                  </svg>
+                </button>
+                <button
+                  className={`tp-preview__aspect-btn ${previewAspect === "9:16" ? "tp-preview__aspect-btn--active" : ""}`}
+                  onClick={() => setPreviewAspect("9:16")}
+                  title="竖屏 9:16"
+                >
+                  <svg width="8" height="14" viewBox="0 0 8 14" fill="none" stroke="currentColor" strokeWidth="1.2">
+                    <rect x="0" y="0" width="8" height="14" rx="1"/>
+                  </svg>
+                </button>
+              </div>
+
               <button className="tp-preview__close" onClick={() => setSelectedId(null)}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
 
-            <div className="tp-preview__content">
+            <div className="tp-preview__content" ref={previewContainerRef}>
               {activeTab === "html" && (
                 selected.htmlPath
-                  ? <iframe src={selected.htmlPath} className="tp-preview__iframe" title="ppt preview" sandbox="allow-scripts allow-same-origin" />
+                  ? <div className={`tp-preview__iframe-container${previewAspect === "9:16" ? " tp-preview__iframe-container--9-16" : ""}`}>
+                      <iframe src={selected.htmlPath} className={`tp-preview__iframe${previewAspect === "9:16" ? " tp-preview__iframe--9-16" : ""}`} title="ppt preview" sandbox="allow-scripts allow-same-origin" />
+                    </div>
                   : <div className="tp-preview-empty">
                       {selected.status === "generating"
                         ? <p className="tp-preview-empty__text">生成中... {selected.progress}%</p>
@@ -474,12 +519,18 @@ export default function TasksPage() {
                     </div>
               )}
               {activeTab === "video" && selected.videoPath && (
-                <video controls className="tp-preview__video">
-                  <source src={selected.videoPath} />
-                  您的浏览器不支持视频播放
-                </video>
+                <div className={`tp-preview__iframe-container${previewAspect === "9:16" ? " tp-preview__iframe-container--9-16" : ""}`}>
+                    <video controls className={`tp-preview__video${previewAspect === "9:16" ? " tp-preview__video--9-16" : ""}`}>
+                      <source src={selected.videoPath} />
+                      您的浏览器不支持视频播放
+                    </video>
+                  </div>
               )}
-              {activeTab === "srt" && selected.status === "done" && <SrtPreview jobId={selected.id} />}
+              {activeTab === "srt" && selected.status === "done" && (
+                <div className="tp-preview__iframe-container">
+                  <SrtPreview jobId={selected.id} />
+                </div>
+              )}
               {activeTab === "srt" && selected.status !== "done" && (
                 <div className="tp-preview-empty">
                   <p className="tp-preview-empty__text">任务完成后可查看字幕</p>
@@ -1123,6 +1174,40 @@ export default function TasksPage() {
           color: var(--text);
         }
 
+        .tp-preview__aspect-toggle {
+          display: flex;
+          align-items: center;
+          gap: 2px;
+          padding: 2px;
+          border-radius: var(--radius-md);
+          border: 1px solid var(--border);
+          background: var(--surface-2);
+        }
+
+        .tp-preview__aspect-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 26px;
+          height: 22px;
+          border-radius: 4px;
+          border: none;
+          background: transparent;
+          color: var(--text-muted);
+          cursor: pointer;
+          transition: all var(--duration-fast) var(--ease-out);
+        }
+
+        .tp-preview__aspect-btn:hover {
+          color: var(--text);
+          background: var(--surface);
+        }
+
+        .tp-preview__aspect-btn--active {
+          background: var(--accent) !important;
+          color: var(--bg) !important;
+        }
+
         .tp-preview__content {
           flex: 1;
           overflow: hidden;
@@ -1130,17 +1215,47 @@ export default function TasksPage() {
           flex-direction: column;
         }
 
+        .tp-preview__iframe-container {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          padding: var(--space-4);
+        }
+
+        .tp-preview__iframe-container--9-16 {
+          padding: 0;
+          height: 100%;
+          width: auto;
+          justify-content: center;
+        }
+
         .tp-preview__iframe {
           width: 100%;
-          flex: 1;
+          height: 100%;
           border: none;
+        }
+
+        .tp-preview__iframe--9-16 {
+          aspect-ratio: 9/16;
+          width: auto;
+          height: 100%;
+          object-fit: contain;
         }
 
         .tp-preview__video {
           width: 100%;
-          flex: 1;
+          height: 100%;
           background: #000;
           outline: none;
+        }
+
+        .tp-preview__video--9-16 {
+          aspect-ratio: 9/16;
+          width: auto;
+          height: 100%;
+          object-fit: contain;
         }
 
         .tp-srt-iframe {
