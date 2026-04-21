@@ -176,9 +176,62 @@ export async function runPipeline(opts: OrchestratorInput): Promise<void> {
 
     // 从 generate_slides 的 markdown 输出中提取 HTML 并保存到文件
     if (generateSlidesOutput) {
-      const htmlContent = extractHtmlFromMarkdown(generateSlidesOutput);
+      let htmlContent = extractHtmlFromMarkdown(generateSlidesOutput);
+      
+      const bridgeScript = `
+<script>
+(function() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const slideParam = urlParams.get('slide');
+  if (slideParam !== null) {
+    const slideIdx = parseInt(slideParam);
+    function sync() {
+      const slides = document.querySelectorAll('.slide');
+      if (slides.length > 0) {
+        slides.forEach((s, i) => {
+          s.style.display = i === slideIdx ? 'flex' : 'none';
+          if (i === slideIdx) {
+            s.style.visibility = 'visible';
+            s.style.opacity = '1';
+          }
+        });
+      }
+    }
+
+    window.addEventListener('message', (e) => {
+      if (e.data.type === 'SEEK') {
+        const frame = e.data.frame;
+        const time = frame / 30;
+        document.querySelectorAll('.slide').forEach((s, i) => {
+          if (i === slideIdx) {
+            s.querySelectorAll('*').forEach(el => {
+              const style = window.getComputedStyle(el);
+              if (style.animationName !== 'none') {
+                el.style.animationPlayState = 'paused';
+                el.style.animationDelay = \`-\${time}s\`;
+                el.style.transition = 'none';
+              }
+            });
+          }
+        });
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', sync);
+    window.addEventListener('load', sync);
+  }
+})();
+</script>
+`;
+      if (htmlContent.includes('</body>')) {
+        htmlContent = htmlContent.replace('</body>', `${bridgeScript}</body>`);
+      } else {
+        htmlContent += bridgeScript;
+      }
+
       writeFileSync(htmlFilePath, htmlContent, "utf-8");
     }
+
 
     // 调用 Remotion 渲染视频
     if (planSlidesOutput && generateSlidesOutput) {

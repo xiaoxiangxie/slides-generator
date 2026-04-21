@@ -122,7 +122,10 @@ steps:
 
       {{style_json}}
 
-      注意：比例 = {{aspect_ratio}}，从 style_json 中取 style_name、style_bg、style_text、style_accent、style_secondary、style_display_font、style_body_font、style_vibe、layout_instruction 等字段应用到 HTML 中。
+      注意：
+      1. 比例 = {{aspect_ratio}}，从 style_json 中取 style_name、style_bg、style_text、style_accent、style_secondary、style_display_font、style_body_font、style_vibe、layout_instruction 等字段。
+      2. **UI 要求**：通过 CSS 隐藏所有翻页箭头（control-btn）、侧边页码圆点（indicator-dot）等视觉交互元素，但**必须保留键盘翻页事件逻辑**。
+      3. **页码要求**：在每页幻灯片的顶部正中央位置，增加一个页码显示，格式如 "[ 1 / 8 ]"，样式需与整体设计风格协调。
     output: html_path
     depends_on: [plan_slides]
 

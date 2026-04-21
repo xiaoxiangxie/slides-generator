@@ -12,57 +12,6 @@ import type { VideoStyle } from "@/lib/style-presets";
 
 const exec = promisify(execCb);
 
-// 从 HTML 中提取 CSS 变量
-interface CssVariables {
-  bg: string;
-  text: string;
-  accent: string;
-  secondary: string;
-  dim: string;
-  glow: string;
-  fontFamily: string;
-}
-
-function extractCssVariables(htmlContent: string): CssVariables {
-  const defaults = {
-    bg: "#0d1117",
-    text: "#39d353",
-    accent: "#39d353",
-    secondary: "#79c0ff",
-    dim: "#484f58",
-    glow: "rgba(57, 211, 83, 0.15)",
-    fontFamily: "JetBrains Mono, monospace",
-  };
-
-  try {
-    // 提取 :root 中的变量
-    const rootMatch = htmlContent.match(/:root\s*\{([^}]+)\}/);
-    if (!rootMatch) return defaults;
-
-    const cssBlock = rootMatch[1];
-    const getVar = (name: string, fallback: string): string => {
-      const match = cssBlock.match(new RegExp(`--${name}\\s*:\\s*([^;]+)`));
-      return match ? match[1].trim() : fallback;
-    };
-
-    // 提取 font-family
-    const fontMatch = htmlContent.match(/font-family:\s*['"]?([^'";\n]+)['"]?/);
-    const fontFamily = fontMatch ? fontMatch[1].trim() : defaults.fontFamily;
-
-    return {
-      bg: getVar("bg", defaults.bg),
-      text: getVar("text", defaults.text),
-      accent: getVar("accent", defaults.accent),
-      secondary: getVar("secondary", defaults.secondary),
-      dim: getVar("dim", defaults.dim),
-      glow: getVar("glow", defaults.glow),
-      fontFamily,
-    };
-  } catch {
-    return defaults;
-  }
-}
-
 // 解析旁白文本（处理 markdown 代码块）
 function parseNarrations(content: string): string[] {
   try {
@@ -437,243 +386,53 @@ export function calculateSubtitles(narrations: string[]): SubEntry[] {
 
 
 
-function buildThemeTs(cssVars: CssVariables): string {
-  return `// 从 HTML CSS 变量提取的主题配置
-export const COLORS = {
-  bg: "${cssVars.bg}",
-  text: "${cssVars.text}",
-  accent: "${cssVars.accent}",
-  secondary: "${cssVars.secondary}",
-  dim: "${cssVars.dim}",
-  glow: "${cssVars.glow}",
-};
-
-export const FONTS = {
-  primary: "${cssVars.fontFamily.split(",")[0].trim()}",
-  mono: "${cssVars.fontFamily}",
-};
-
-export const GLOW_CYAN = \`0 0 20px \${COLORS.accent}40, 0 0 40px \${COLORS.accent}20\`;
-export const GLOW_SECONDARY = \`0 0 20px \${COLORS.secondary}40, 0 0 40px \${COLORS.secondary}20\`;
-`;
-}
-
-// 根据 slide 数据生成场景组件代码
-function buildSlideSceneTsx(slideIndex: number, slide: SlideData, cssVars: CssVariables): string {
+function buildSlideSceneTsx(slideIndex: number, htmlUrl: string): string {
   const slideNum = String(slideIndex + 1).padStart(2, "0");
-  const totalSlides = "08"; // 这个后面会动态计算
 
-  // 根据 slide 类型生成不同的内容
-  let contentJsx = "";
+  return `import React, { useEffect, useRef, useState, useCallback } from "react";
+import { AbsoluteFill, useCurrentFrame, delayRender, continueRender } from "remotion";
 
-  if (slide.type === "title" || slide.type === "concept") {
-    contentJsx = `
-      {/* Terminal Frame */}
-      <div style={{
-        position: "relative",
-        width: "100%",
-        maxWidth: 500,
-        background: "rgba(13, 17, 23, 0.95)",
-        border: \`1px solid \${COLORS.accent}50\`,
-        borderRadius: 8,
-        boxShadow: \`0 0 30px \${COLORS.glow}, inset 0 1px 0 rgba(255,255,255,0.05)\`,
-        padding: "clamp(1.5rem, 4vw, 2.5rem)",
-      }}>
-        {/* Terminal Header */}
-        <div style={{ display: "flex", gap: 8, marginBottom: "1.5rem", paddingBottom: "1rem", borderBottom: \`1px solid \${COLORS.accent}33\` }}>
-          <span style={{ width: 12, height: 12, borderRadius: "50%", background: "#ff5f56" }} />
-          <span style={{ width: 12, height: 12, borderRadius: "50%", background: "#ffbd2e" }} />
-          <span style={{ width: 12, height: 12, borderRadius: "50%", background: "#27c93f" }} />
-        </div>
-
-        {/* Title */}
-        <h1 style={{
-          fontSize: "clamp(1.5rem, 5vw, 2.2rem)",
-          fontWeight: 700,
-          marginBottom: "1rem",
-          textShadow: \`0 0 20px \${COLORS.glow}\`,
-          lineHeight: 1.3,
-          color: COLORS.text,
-        }}>
-          ${slide.title}
-        </h1>
-
-        ${slide.points && slide.points.length > 0 ? `
-        {/* Points List */}
-        <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          ${slide.points.map((point, i) => `
-            <li style={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: "0.75rem",
-              fontSize: "clamp(0.85rem, 2.2vw, 1rem)",
-              lineHeight: 1.5,
-              color: COLORS.text,
-            }}>
-              <span style={{ color: COLORS.accent, flexShrink: 0, marginTop: "0.1em" }}>▹</span>
-              ${point}
-            </li>
-          `).join("")}
-        </ul>
-        ` : ""}
-
-        ${slide.narration ? `
-        {/* Narration */}
-        <div style={{
-          marginTop: "1.5rem",
-          padding: "1rem",
-          background: \`\${COLORS.accent}0d\`,
-          borderLeft: \`2px solid \${COLORS.accent}\`,
-          fontSize: "clamp(0.75rem, 1.8vw, 0.9rem)",
-          color: \`\${COLORS.accent}cc\`,
-          fontStyle: "italic",
-          lineHeight: 1.7,
-        }}>
-          &gt; ${slide.narration}
-        </div>
-        ` : ""}
-      </div>
-    `;
-  } else if (slide.type === "summary" && slide.summary_cards) {
-    contentJsx = `
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(2, 1fr)",
-        gap: "1rem",
-        width: "100%",
-        maxWidth: 500,
-      }}>
-        ${slide.summary_cards.map(card => `
-          <div style={{
-            display: "flex",
-            flexDirection: "column",
-            padding: "1rem",
-            background: \`\${COLORS.accent}0d\`,
-            border: \`1px solid \${COLORS.accent}33\`,
-            borderRadius: 6,
-          }}>
-            <span style={{
-              fontSize: "clamp(0.7rem, 1.5vw, 0.8rem)",
-              color: COLORS.secondary,
-              marginBottom: "0.25rem",
-              textTransform: "uppercase",
-              letterSpacing: "1px",
-            }}>
-              // ${card.label}
-            </span>
-            <span style={{
-              fontSize: "clamp(0.85rem, 2vw, 1rem)",
-              color: COLORS.text,
-              fontWeight: 500,
-            }}>
-              ${card.value}
-            </span>
-          </div>
-        `).join("")}
-      </div>
-    `;
-  }
-
-  return `import React from "react";
-import { AbsoluteFill } from "remotion";
-import { useCurrentFrame, useVideoConfig } from "remotion";
-import { COLORS, FONTS, GLOW_CYAN } from "./theme";
-
-// FadeIn 动画组件
-function FadeIn({ children, delay, duration, slideDistance }) {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const progress = Math.max(0, Math.min(1, (frame - delay) / (fps * duration)));
-  return (
-    <div style={{
-      opacity: progress,
-      transform: \`translateY(\${(1 - progress) * slideDistance}px)\`,
-    }}>
-      {children}
-    </div>
-  );
-}
-
-// Slide ${slideNum} 场景组件
 export const SlideScene${slideNum}: React.FC = () => {
+  const frame = useCurrentFrame();
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [handle] = useState(() => delayRender("Loading iframe for Slide ${slideNum}"));
+
+  const sync = useCallback((f: number) => {
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      iframeRef.current.contentWindow.postMessage({ 
+        type: "SEEK", 
+        frame: f 
+      }, "*");
+    }
+  }, []);
+
+  const onIframeLoad = useCallback(() => {
+    // 初始同步第一帧
+    sync(frame);
+    // 稍微延迟一丁点确保浏览器完成初次绘制
+    setTimeout(() => {
+      continueRender(handle);
+    }, 50);
+  }, [frame, handle, sync]);
+
+  // 同步当前帧到 iframe 内部的 HTML
+  useEffect(() => {
+    sync(frame);
+  }, [frame, sync]);
+
   return (
-    <AbsoluteFill style={{ backgroundColor: COLORS.bg, fontFamily: FONTS.mono }}>
-      {/* Grid Background */}
-      <div style={{
-        position: "fixed",
-        top: 0, left: 0,
-        width: "100%",
-        height: "100%",
-        backgroundImage: \`
-          linear-gradient(\${COLORS.accent}08 1px, transparent 1px),
-          linear-gradient(90deg, \${COLORS.accent}08 1px, transparent 1px)
-        \`,
-        backgroundSize: "40px 40px",
-        pointerEvents: "none",
-        zIndex: 0,
-      }} />
-
-      {/* Section Number */}
-      <div style={{
-        position: "absolute",
-        top: "clamp(1rem, 3vw, 2rem)",
-        left: "clamp(1rem, 3vw, 2rem)",
-        fontSize: "clamp(0.7rem, 1.5vw, 0.85rem)",
-        color: COLORS.dim,
-        zIndex: 2,
-      }}>
-        [ ${slideNum}/${totalSlides} ]
-      </div>
-
-      {/* Main Content - 带入场动画 */}
-      <div style={{
-        position: "absolute",
-        top: 0, left: 0, right: 0, bottom: 0,
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        alignItems: "center",
-        padding: "clamp(1.5rem, 5vw, 3rem)",
-        zIndex: 1,
-      }}>
-        <FadeIn delay={0} duration={0.5} slideDistance={20}>
-          ${contentJsx}
-        </FadeIn>
-      </div>
-
-      {/* Corner Decorations */}
-      <div style={{
-        position: "absolute",
-        top: 10, left: 10,
-        width: 30, height: 30,
-        borderTop: \`2px solid \${COLORS.accent}\`,
-        borderLeft: \`2px solid \${COLORS.accent}\`,
-        opacity: 0.5,
-      }} />
-      <div style={{
-        position: "absolute",
-        top: 10, right: 10,
-        width: 30, height: 30,
-        borderTop: \`2px solid \${COLORS.accent}\`,
-        borderRight: \`2px solid \${COLORS.accent}\`,
-        opacity: 0.5,
-      }} />
-      <div style={{
-        position: "absolute",
-        bottom: 10, left: 10,
-        width: 30, height: 30,
-        borderBottom: \`2px solid \${COLORS.accent}\`,
-        borderLeft: \`2px solid \${COLORS.accent}\`,
-        opacity: 0.5,
-      }} />
-      <div style={{
-        position: "absolute",
-        bottom: 10, right: 10,
-        width: 30, height: 30,
-        borderBottom: \`2px solid \${COLORS.accent}\`,
-        borderRight: \`2px solid \${COLORS.accent}\`,
-        opacity: 0.5,
-      }} />
+    <AbsoluteFill style={{ backgroundColor: "#000" }}>
+      <iframe
+        ref={iframeRef}
+        onLoad={onIframeLoad}
+        src="${htmlUrl}?slide=${slideIndex}"
+        style={{
+          width: "100%",
+          height: "100%",
+          border: "none",
+          overflow: "hidden",
+        }}
+      />
     </AbsoluteFill>
   );
 };
@@ -740,16 +499,16 @@ export async function runRemotionRender(opts: RemotionRenderOptions): Promise<Re
   const cwd = process.cwd();
   const remotionDir = path.join(cwd, "remotion", taskId);
 
+  onProgress?.("同步启动本地静态服务器...");
+  const htmlDir = path.dirname(htmlPath);
+  // 固定端口 3456 用于渲染同步
+  const { server, url: htmlServerUrl } = await startHttpServer(htmlDir, 3456);
+
   onProgress?.("初始化 Remotion 项目目录...");
   await mkdir(path.join(remotionDir, "src"), { recursive: true });
 
-  // 读取 HTML 和 outline
-  const htmlContent = await readFile(htmlPath, "utf-8");
+  // 读取 outline
   const outlineContent = await readFile(outlinePath, "utf-8");
-
-  // 提取 CSS 变量
-  const cssVars = extractCssVariables(htmlContent);
-  onProgress?.(`提取主题: bg=${cssVars.bg}, accent=${cssVars.accent}`);
 
   // 解析幻灯片
   const slides = parseSlides(outlineContent);
@@ -762,19 +521,15 @@ export async function runRemotionRender(opts: RemotionRenderOptions): Promise<Re
 
   onProgress?.("写入 Remotion 源码文件...");
 
-  // 写 theme.ts
-  await writeFile(path.join(remotionDir, "src", "theme.ts"), buildThemeTs(cssVars), "utf-8");
-
-  // 写每个幻灯片场景组件
+  // 写每个幻灯片场景组件 (现在使用 iframe 同步)
   for (let i = 0; i < slideCount; i++) {
-    const slide = slides[i];
-    const sceneCode = buildSlideSceneTsx(i, slide, cssVars);
+    const sceneCode = buildSlideSceneTsx(i, htmlServerUrl);
     await writeFile(
       path.join(remotionDir, "src", `SlideScene${String(i + 1).padStart(2, "0")}.tsx`),
       sceneCode,
       "utf-8"
     );
-    onProgress?.(`写入 SlideScene${String(i + 1).padStart(2, "0")}.tsx`);
+    onProgress?.(`写入 SlideScene${String(i + 1).padStart(2, "0")}.tsx (HTML Bridge)`);
   }
 
   // 解析旁白并计算每页时长
@@ -782,7 +537,7 @@ export async function runRemotionRender(opts: RemotionRenderOptions): Promise<Re
   const slideDurations = narrations.map((n) => {
     const minFrames = 90;
     const charCount = n.length || 20;
-    const charBasedFrames = Math.round(charCount * 9); // 每字约 0.3 秒 * 30fps
+    const charBasedFrames = Math.round(charCount * 9); 
     return Math.max(minFrames, charBasedFrames);
   });
   const totalFrames = slideDurations.reduce((a, b) => a + b, 0);
@@ -817,6 +572,9 @@ export async function runRemotionRender(opts: RemotionRenderOptions): Promise<Re
   // 生成 SRT
   onProgress?.("生成 SRT 字幕文件...");
   const srtPath = await generateSrtFile(outlinePath, outputDir, taskId, videoStyle);
+
+  // 关闭静态服务器
+  server.close();
 
   return { mp4Path, srtPath };
 }
